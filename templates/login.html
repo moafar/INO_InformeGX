@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar sesión | Ergo App{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <h2>Iniciar sesión</h2>
+    <p class="muted">Acceso restringido a usuarios autorizados.</p>
+  </section>
+
+  <form method="post" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field">
+      <span>Usuario</span>
+      <input type="text" name="username" value="{{ username }}" autocomplete="username" required>
+    </label>
+    <label class="field">
+      <span>Contraseña</span>
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="button">Entrar</button>
+  </form>
+{% endblock %}

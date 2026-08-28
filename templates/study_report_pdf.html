@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Informe clínico</title>
+</head>
+<body>
+  <div class="first-page-letterhead">
+    <div class="wide-letterhead-slot">
+      {% if wide_letterhead_uri %}<img src="{{ wide_letterhead_uri }}" alt="Membrete institucional ancho">{% endif %}
+    </div>
+  </div>
+
+  <header class="compact-page-header">
+    <div class="compact-letterhead-slot">
+      {% if compact_letterhead_uri %}<img src="{{ compact_letterhead_uri }}" alt="Membrete institucional compacto">{% endif %}
+    </div>
+    <div class="compact-patient-data">
+      <strong>{{ patient_name }}</strong>
+      <span>ID {{ report.field('patient_id_num').value if report.field('patient_id_num').value != '' else '—' }}</span>
+      <span>Fecha {{ report.field('visit_date').value if report.field('visit_date').value != '' else '—' }}</span>
+    </div>
+  </header>
+
+  <footer class="running-footer">Generado con ErgoApp INO v1.0 · {{ generated_at_bogota }}</footer>
+
+  <main class="clinical-report">
+    <header class="report-header">
+      <p class="report-kicker">PRUEBA DE EJERCICIO CARDIOPULMONAR</p>
+      <h1>Informe de resultados</h1>
+      <section class="patient-identity" aria-label="Identificación del paciente">
+        <div class="patient-primary"><small>Paciente</small><strong>{{ patient_name }}</strong></div>
+        <dl class="patient-meta">
+          <div><dt>Identificación</dt><dd>{{ report.field('patient_id_num').value if report.field('patient_id_num').value != '' else '—' }}</dd></div>
+          <div><dt>Edad</dt><dd>{% if report.field('age').value != '' %}{{ report.field('age').value }} años{% else %}—{% endif %}</dd></div>
+          <div><dt>Sexo</dt><dd>{{ report.field('sex').value if report.field('sex').value != '' else '—' }}</dd></div>
+          <div><dt>Fecha del estudio</dt><dd>{{ report.field('visit_date').value if report.field('visit_date').value != '' else '—' }}</dd></div>
+        </dl>
+      </section>
+    </header>
+
+    <div class="report-body">
+      {% for section in narratives %}
+        <section class="report-section">
+          <h2>{{ section.title }}</h2>
+          {% if section.bulleted and section.fragments %}
+            <ul>
+              {% for fragment in section.fragments %}<li>{{ fragment }}</li>{% endfor %}
+            </ul>
+          {% else %}
+            {% for fragment in section.fragments %}
+              {% if section.title == 'Conclusiones' and loop.last and conclusion_paragraphs %}
+                <div class="final-conclusions">
+                  {% for paragraph in conclusion_paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+                </div>
+              {% else %}
+                <p>{{ fragment }}</p>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if section.citation %}<cite>{{ section.citation }}</cite>{% endif %}
+        </section>
+      {% endfor %}
+    </div>
+
+    <section class="signature-block" aria-label="Firma del profesional responsable">
+      <p class="signature-caption">Firma del profesional responsable</p>
+      <div class="signature-writing-space" aria-hidden="true"></div>
+      <p class="signature-name">{{ signature_profile.name }}</p>
+      {% if signature_profile.profession_specialty %}<p>{{ signature_profile.profession_specialty }}</p>{% endif %}
+      {% if signature_profile.professional_registration %}<p>Registro profesional: {{ signature_profile.professional_registration }}</p>{% endif %}
+      {% if signature_profile.institutional_line %}<p class="signature-institution">{{ signature_profile.institutional_line }}</p>{% endif %}
+    </section>
+  </main>
+</body>
+</html>

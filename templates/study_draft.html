@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Borrador del informe | Ergo App{% endblock %}
+{% block body_class %}study-report-body{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='study_report.css') }}">{% endblock %}
+
+{% block content %}
+{% macro provenance(meta) -%}
+  <span class="field-provenance" aria-hidden="true">
+    <small class="field-origin field-origin--{{ 'gx' if meta.origin == 'GX' else 'manual' }}">{{ meta.origin_label }}</small>
+    <small class="field-source{{ '' if meta.source_columns else ' field-source--empty' }}" title="{{ meta.source_label }}">{{ meta.source_label }}</small>
+  </span>
+{%- endmacro %}
+
+{% macro field(field_id, label, unit='', area=false) -%}
+  {% set meta = draft.field(field_id) %}
+  <label class="field{{ ' field--area' if area else '' }}" for="{{ field_id }}" data-origin="{{ meta.origin }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
+    <span>{{ label }}{{ provenance(meta) }}</span>
+    <span class="control-wrap">
+      {% if area %}
+        <textarea id="{{ field_id }}" name="{{ field_id }}" data-report-control data-original-value="{{ meta.original_value }}">{{ meta.value }}</textarea>
+      {% else %}
+        <input id="{{ field_id }}" name="{{ field_id }}" value="{{ meta.value }}" data-report-control data-original-value="{{ meta.original_value }}">
+      {% endif %}
+      {% if unit %}<b>{{ unit }}</b>{% endif %}
+    </span>
+  </label>
+{%- endmacro %}
+
+{% macro checkbox(field_id, label) -%}
+  {% set meta = draft.field(field_id) %}
+  {% set checked = meta.value in [true, 1, '1', 'true', 'True', 'SI', 'SÍ', 'si', 'sí'] %}
+  <label class="field-checkbox" for="{{ field_id }}" data-origin="{{ meta.origin }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
+    <input id="{{ field_id }}" name="{{ field_id }}" type="checkbox" value="true" data-report-control data-original-value="{{ meta.original_value }}"{% if checked %} checked{% endif %}>
+    <span>{{ label }}{{ provenance(meta) }}</span>
+  </label>
+{%- endmacro %}
+
+<div class="study-report-page">
+  <section class="workspace">
+    <div class="workspace-title">
+      <div>
+        <h2>Borrador del informe</h2>
+        <div class="workspace-meta">
+          <p>Formulario clínico compacto · <span id="filled-count">0</span> de <span id="total-count">87</span> campos diligenciados</p>
+          <span class="manual-key"><i aria-hidden="true"></i>Requiere intervención manual</span>
+          {% if preview_mode %}<span class="preview-key">Vista previa con datos sintéticos</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <form id="study-report-form" method="post" action="{{ url_for('studies.select') }}" data-pdf-url="{{ url_for('studies.report_pdf') }}">
+      <input type="hidden" id="report-csrf-token" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" id="lookup-patient-id" name="study_patient_id_num" value="{{ draft.lookup_patient_id_num }}">
+      <input type="hidden" id="lookup-visit-datetime" name="study_visit_datetime" value="{{ draft.lookup_visit_datetime }}">
+
+      <div class="patient-bar">
+        <div class="patient-summary">
+          <strong id="sticky-patient-name">{{ draft.patient_full_name or 'Paciente sin identificar' }}</strong>
+          <span>Sexo <span id="sticky-sex">{{ draft.field('sex').value or '—' }}</span></span>
+          <span>Edad <span id="sticky-age">{{ draft.field('age').value or '—' }}</span></span>
+          <span>ID <span id="sticky-id">{{ draft.field('patient_id_num').value or '—' }}</span></span>
+          <span id="sticky-date">{{ draft.field('visit_date').value or '—' }}</span>
+        </div>
+        <div class="patient-actions">
+          <button class="primary" id="view-report" type="button">Ver informe</button>
+          <button class="ghost" id="toggle-detail" type="button" aria-pressed="false">Mostrar detalle</button>
+          <button class="ghost" id="update-draft" type="submit">Actualizar borrador</button>
+          <button class="primary" id="generate-pdf" type="button"{% if preview_mode %} disabled title="La vista sintética no corresponde a un estudio seleccionable"{% endif %}>Generar PDF</button>
+        </div>
+      </div>
+
+      <div class="identity-grid" id="identity-grid" hidden>
+        {{ field('patient_first_name', 'Primer nombre') }}
+        {{ field('patient_middle_name', 'Segundo nombre') }}
+        {{ field('patient_last_name', 'Apellidos') }}
+        {{ field('age', 'Edad', 'años') }}
+        {{ field('sex', 'Sexo') }}
+        {{ field('visit_date', 'Fecha') }}
+        {{ field('patient_id_num', 'Identificación') }}
+      </div>
+
+      <section class="clinical-section" data-section-index="0">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">1</span><strong>Antecedentes clínicos y remisión</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group group--grow"><legend>Remisión</legend><div class="fields">
+              {{ field('motivo_remision', 'Motivo de la remisión', area=true) }}
+              {{ field('diagnosis', 'Diagnóstico') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Antropometría</legend><div class="fields">
+              {{ field('weight', 'Peso', 'kg') }}
+              {{ field('height', 'Estatura', 'cm') }}
+              {{ field('bmi', 'IMC', 'kg/m²') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Laboratorios</legend><div class="fields">
+              {{ field('hb', 'Hemoglobina', 'g/dL') }}
+              {{ field('hc', 'Hematocrito', '%') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Antecedentes clínicos</legend><div class="fields">
+              {{ field('disnea_mrc', 'Disnea MRC') }}
+              {{ field('tbco_prod', 'Tabaquismo') }}
+              {{ field('pk_yrs', 'Índice paquetes-año') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Biomasa y oxígeno</legend><div class="fields">
+              {{ field('biomasa', 'Exposición a biomasa') }}
+              {{ field('oxigeno', 'Oxigenoterapia') }}
+            </div></fieldset>
+            <fieldset class="group group--grow"><legend>Medicamentos</legend><div class="fields">
+              {{ field('medicamentos', 'Tratamiento actual', area=true) }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="0" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="clinical-section" data-section-index="1">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">2</span><strong>Protocolo</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group"><legend>Prueba</legend><div class="fields">
+              {{ field('gx_vo2_max_time_min', 'Duración', 'min') }}
+              {{ field('gx_vo2_max_work_watts', 'Carga máxima', 'W') }}
+              {{ field('porc_fc_maxima', '% de FC máxima predicha', '%') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Disnea (Borg)</legend><div class="fields">
+              {{ field('disnea_borg_inicial', 'Inicial') }}
+              {{ field('disnea_borg_final', 'Final') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Fatiga (Borg)</legend><div class="fields">
+              {{ field('fatiga_borg_inicial', 'Inicial') }}
+              {{ field('fatiga_borg_final', 'Final') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Etapas</legend><div class="fields">
+              {{ field('cambio_watts_por_etapa', 'Cambio de carga', 'W/etapa') }}
+              {{ checkbox('medicion_gases', 'Medición de gases arteriales en reposo y al terminar') }}
+            </div></fieldset>
+            <fieldset class="group group--grow"><legend>Esfuerzo</legend><div class="fields">
+              {{ field('gx_vo2_max_rer', 'RER') }}
+              {{ field('porc_o2_predicho', 'VO₂ predicho', '%') }}
+              {{ field('sugerencia_rer', 'Interpretación del RER') }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="1" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="clinical-section" data-section-index="2">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">3</span><strong>Capacidad funcional</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group"><legend>O₂ en reposo</legend><div class="fields">
+              {{ field('gx_rest_vo2_ml_per_min', 'VO₂ absoluto', 'ml/min') }}
+              {{ field('gx_rest_vo2_ml_per_kg_per_min', 'VO₂ relativo', 'ml/kg/min') }}
+              {{ field('interpretacion_consumo_vo2', 'Se considera:') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Predichos</legend><div class="fields">
+              {{ field('porc_vo2_predicho', 'VO₂ pico', '%') }}
+              {{ field('carga_max_w', 'Carga máxima', '%') }}
+              {{ field('interpretacion_prueba_cp', 'Prueba de ejercicio cardiopulmonar:') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>VO₂ pico</legend><div class="fields">
+              {{ field('gx_vo2_max_vo2_ml_per_min', 'Absoluto', 'ml/min') }}
+              {{ field('gx_vo2_max_vo2_ml_per_kg_per_min_1', 'Relativo', 'ml/kg/min') }}
+              {{ field('clase_funcional', 'Clase funcional:') }}
+            </div></fieldset>
+            <fieldset class="group group--grow"><legend>Trabajo</legend><div class="fields">
+              {{ field('relacion_consumo_trabajo', 'Pendiente VO₂/carga', 'ml/min/W') }}
+              {{ field('interpretacion_relacion_consumo_trabajo', 'Se considera:', area=true) }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="2" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="clinical-section" data-section-index="3">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">4</span><strong>Respuesta cardiovascular</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group"><legend>Frecuencia cardiaca</legend><div class="fields">
+              {{ field('ritmo_cardio_inicial', 'Ritmo inicial') }}
+              {{ field('gx_rest_hr_bpm', 'FC inicial', 'lpm') }}
+              {{ field('gx_vo2_max_hr_bpm', 'FC máxima', 'lpm') }}
+              {{ field('calif_fc', 'Frecuencia cardiaca:') }}
+            </div></fieldset>
+            <fieldset class="group group--grow"><legend>Electrocardiograma</legend><div class="fields">
+              {{ field('ritmo_ekg', 'EKG en ritmo:', area=true) }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Tensión arterial</legend><div class="fields">
+              {{ field('gx_rest_sysbp_mmhg', 'Inicial sistólica', 'mmHg') }}
+              {{ field('gx_rest_diabp_mmhg', 'Inicial diastólica', 'mmHg') }}
+              {{ field('gx_vo2_max_sysbp_mmhg', 'Final sistólica', 'mmHg') }}
+              {{ field('gx_vo2_max_diabp_mmhg', 'Final diastólica', 'mmHg') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Recuperación</legend><div class="fields">
+              {{ field('latidos_recuperados_minuto', 'Latidos recuperados', 'lpm') }}
+              {{ field('vo2_minuto', 'VO₂ al minuto') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Oxígeno latido</legend><div class="fields">
+              {{ field('porc_pred_o2_latido_6', 'Predicho', '%') }}
+              {{ field('interpretacion_o2_latido_6', 'Se considera:') }}
+              {{ field('umbral_anaerobio_alcanzado', 'Logró umbral anaerobio') }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="3" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="clinical-section" data-section-index="4">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">5</span><strong>Respuesta ventilatoria</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group group--ventilatory-top"><legend>Curva y ventilación</legend><div class="fields">
+              {{ field('interpretacion_curva_flujo_volumen', 'Curva flujo-volumen basal:') }}
+              {{ field('pf_pre_mvv_l_per_min', 'VVM medida', 'L/min') }}
+              {{ field('gx_rest_ve_btps_l_per_min', 'VE en reposo', 'L/min') }}
+              {{ field('comportamiento_vvm', 'Observación adicional sobre VE:') }}
+            </div></fieldset>
+            <fieldset class="group group--ventilatory-top"><legend>Ejercicio pico</legend><div class="fields">
+              {{ field('gx_vo2_max_ve_btps_l_per_min', 'VE en ejercicio pico', 'L/min') }}
+              {{ field('reserva_respiratoria_pico_l', 'Reserva respiratoria en ejercicio pico', 'L/min') }}
+              {{ field('interpretacion_reserva_pico_vvm', 'Se considera:') }}
+              {{ field('gx_vo2_max_ve_per_mvv_pct', 'VE/VVM', '%') }}
+              {{ field('gx_vo2_max_vt_per_ic_pct', 'VT/CI', '%') }}
+            </div></fieldset>
+            <fieldset class="group group--ventilatory-top"><legend>Patrón respiratorio</legend><div class="fields">
+              {{ field('gx_rest_rr_br_per_min', 'FR en reposo', 'rpm') }}
+              {{ field('gx_vo2_max_rr_br_per_min_1', 'FR máxima', 'rpm') }}
+              {{ field('observaciones_asa_volumen_corriente', 'Se observa que el asa de volumen corriente:') }}
+              {{ field('observaciones_volumen_minuto', 'El volumen minuto:') }}
+              {{ field('interpretacion_fr_maxima', 'Se considera:') }}
+            </div></fieldset>
+            <fieldset class="group group--ventilatory-top"><legend>Oxigenación</legend><div class="fields">
+              {{ field('gx_rest_spo2_pct', 'SpO₂ reposo', '%') }}
+              {{ field('gx_vo2_max_spo2_pct', 'SpO₂ final', '%') }}
+            </div></fieldset>
+            <fieldset class="group group--gas-exchange"><legend>Intercambio gaseoso</legend><div class="fields">
+              {{ field('gx_rest_vd_per_vt_meas', 'VD/VT en reposo') }}
+              {{ field('gx_vo2_max_vd_per_vt_meas', 'VD/VT en ejercicio máximo') }}
+              {{ field('relacion_vdvt_reposo', 'VD/VT en reposo se considera:') }}
+              {{ field('comportamiento_relacion_vdvt', 'VD/VT entre reposo y ejercicio máximo:') }}
+              {{ field('gx_at_ve_per_vco2', 'VE/VCO₂ en punto AT automático') }}
+              {{ field('gx_at_ve_per_vo2', 'VE/VO₂ en punto AT automático') }}
+              {{ field('gx_rest_petco2_mmhg', 'PETCO₂ en reposo', 'mmHg') }}
+              {{ field('comportamiento_petco2_rest_ejercicio_total', 'Durante el ejercicio:') }}
+              {{ field('comportamiento_petco2_rest_ejercicio_maximo', 'En ejercicio máximo:') }}
+              {{ field('interpretacion_petco2_pico_reposo', 'En ejercicio pico respecto al reposo se considera:') }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="4" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="clinical-section" data-section-index="5">
+        <button class="section-head" type="button" aria-expanded="true"><span class="step">6</span><strong>Conclusiones</strong><span class="chevron up">⌄</span></button>
+        <div class="section-body">
+          <div class="group-grid">
+            <fieldset class="group group--conclusion-metrics"><legend>Síntesis cuantitativa</legend><div class="fields">
+              {{ field('gx_vo2_max_vo2_ml_per_kg_per_min_2', 'VO₂ pico relativo', 'ml/kg/min') }}
+              {{ field('gx_vo2_max_vo2workslope_ml_per_min_per_watt', 'Pendiente VO₂/trabajo', 'ml/min/W') }}
+              {{ field('gx_vo2_max_rr_br_per_min_2', 'FR máxima', 'rpm') }}
+            </div></fieldset>
+            <fieldset class="group group--grow group--conclusion-text"><legend>Conclusiones</legend><div class="fields">
+              {{ field('conclusiones_definitivas', 'Conclusiones definitivas', area=true) }}
+            </div></fieldset>
+          </div>
+          <div class="section-narrative-slot" data-section-narrative="5" aria-live="polite"></div>
+        </div>
+      </section>
+    </form>
+
+    <dialog class="pdf-confirm-dialog" id="pdf-confirm-dialog" aria-labelledby="pdf-dialog-title" aria-describedby="pdf-dialog-description">
+      <div class="pdf-dialog-content">
+        <h2 id="pdf-dialog-title">Confirmar generación del informe</h2>
+        <p id="pdf-dialog-description">Se generará el PDF con la información que aparece actualmente en el informe. ¿Deseas continuar?</p>
+        <p class="pdf-dialog-error" id="pdf-dialog-error" role="alert" hidden></p>
+        <div class="pdf-dialog-actions">
+          <button class="ghost" id="cancel-pdf" type="button">Cancelar</button>
+          <button class="primary" id="confirm-pdf" type="button">Generar PDF</button>
+        </div>
+      </div>
+    </dialog>
+
+    <article class="preview clinical-report" id="preview">
+      <div class="preview-head">
+        <div><span>VISTA PREVIA · SOLO LECTURA</span><h2>Informe clínico</h2></div>
+        <button class="ghost" id="back-to-form" type="button">Volver al formulario</button>
+      </div>
+      <header class="report-header">
+        <p class="report-kicker">PRUEBA DE EJERCICIO CARDIOPULMONAR</p>
+        <h2>Informe de resultados</h2>
+        <div class="report-patient-data">
+          <div class="report-patient-name"><small>Paciente</small><strong id="report-patient-name">{{ draft.patient_full_name or 'Paciente sin identificar' }}</strong></div>
+          <div><small>Identificación</small><strong id="report-patient-id">{{ draft.field('patient_id_num').value or '—' }}</strong></div>
+          <div><small>Edad</small><strong id="report-age">{% if draft.field('age').value != '' %}{{ draft.field('age').value }} años{% else %}—{% endif %}</strong></div>
+          <div><small>Sexo</small><strong id="report-sex">{{ draft.field('sex').value or '—' }}</strong></div>
+          <div><small>Fecha del estudio</small><strong id="report-date">{{ draft.field('visit_date').value or '—' }}</strong></div>
+        </div>
+      </header>
+      <div class="report-body">
+        {% for title in ['Antecedentes clínicos y remisión', 'Protocolo', 'Capacidad funcional', 'Respuesta cardiovascular', 'Respuesta ventilatoria', 'Conclusiones'] %}
+          <section class="report-section"><h3>{{ title }}</h3><div data-report-narrative="{{ loop.index0 }}"></div></section>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='study_report.js') }}" defer></script>{% endblock %}

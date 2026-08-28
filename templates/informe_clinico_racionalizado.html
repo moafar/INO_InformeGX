@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estación Clínica Racionalizada - Ergoespirometría</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body class="h-full text-slate-700 font-sans text-[12px] flex flex-col antialiased selection:bg-blue-200 selection:text-blue-900">
+
+    <!-- BARRA DE HERRAMIENTAS SUPERIOR FIJA (MODO CLARO) -->
+    <div class="w-full bg-white border-b border-slate-200 h-11 flex items-center justify-between px-6 sticky top-0 z-50 shrink-0 shadow-sm">
+        <div class="flex items-center gap-3">
+            <span class="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Ergoespirometría UI Racionalizada</span>
+            <div class="h-3 w-px bg-slate-200"></div>
+            <div class="bg-slate-100 p-0.5 rounded border border-slate-200 flex gap-0.5 text-[10px]">
+                <button class="bg-white text-slate-900 font-medium px-2 py-0.5 rounded shadow-sm">Todos (34)</button>
+                <button class="text-slate-500 hover:text-slate-800 px-2 py-0.5">Pendientes (3)</button>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 text-[10px]">
+                <span class="text-slate-400">Progreso Global:</span>
+                <div class="w-20 bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+                    <div class="bg-emerald-500 h-full w-[100%]"></div>
+                </div>
+                <span class="text-emerald-600 font-mono font-bold">100%</span>
+            </div>
+            <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold h-7 px-3 rounded transition-all text-[11px] shadow-sm flex items-center gap-1">
+                Siguiente pendiente ➡️
+            </button>
+        </div>
+    </div>
+
+    <!-- ANCHO OBJETIVO CONFORTABLE Y RACIONALIZADO (MAX 1340PX - SIN ASIDE) -->
+    <main class="w-full max-w-[1340px] mx-auto flex-1 p-5 overflow-y-auto space-y-4">
+        
+        <!-- 1. IDENTIFICACIÓN -->
+        <section id="sec-1" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="flex justify-between border-b border-slate-100 pb-2 mb-3">
+                <span class="text-blue-600 font-bold uppercase tracking-wider text-[11px]">1. Identificación y Filtros Clínicos</span>
+                <span class="text-slate-400 font-mono">Visit Datetime: 2026-08-22 15:05</span>
+            </div>
+            
+            <!-- Fila Compacta Agrupada de Paciente -->
+            <div class="grid grid-cols-12 gap-3 mb-3 bg-slate-50/60 p-2.5 rounded-lg border border-slate-150">
+                <div class="col-span-3 flex items-center gap-2">
+                    <span class="text-slate-500 font-medium shrink-0">ID:</span>
+                    <input type="text" value="ID-983421" class="w-full bg-white border border-slate-200 rounded-md px-2 py-1 font-mono text-blue-700 font-semibold focus:border-blue-500 focus:outline-none shadow-sm">
+                </div>
+                <div class="col-span-5 flex items-center gap-2">
+                    <span class="text-slate-500 font-medium shrink-0">Paciente:</span>
+                    <input type="text" value="Carlos Alberto Mendoza Rivera" class="w-full bg-white border border-slate-200 rounded-md px-2 py-1 text-slate-900 font-medium focus:border-blue-500 focus:outline-none shadow-sm">
+                </div>
+                <div class="col-span-2 flex items-center gap-1.5">
+                    <span class="text-slate-500 font-medium shrink-0">Edad:</span>
+                    <input type="number" value="42" class="w-12 bg-white border border-slate-200 rounded-md px-2 py-1 text-right font-mono focus:border-blue-500 focus:outline-none shadow-sm"><span class="text-slate-400">años</span>
+                </div>
+                <div class="col-span-2 flex items-center gap-2">
+                    <span class="text-slate-500 font-medium shrink-0">Sexo:</span>
+                    <div class="bg-slate-100 rounded-md p-0.5 border border-slate-200 flex w-full text-center font-bold text-[10px]">
+                        <span class="bg-white text-blue-600 rounded-md py-1 w-1/2 shadow-sm cursor-pointer">M</span>
+                        <span class="text-slate-400 rounded-md py-1 w-1/2 cursor-pointer">F</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cuadrícula Racionalizada de Antecedentes y Clínica Directa -->
+            <div class="grid grid-cols-4 gap-2.5 text-[11px]">
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-20 shrink-0">Diagnóstico:</span>
+                    <input type="text" value="EPOC Leve" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-blue-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-14 shrink-0">Disnea:</span>
+                    <input type="text" value="Grado 2 mMRC" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-blue-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-10 shrink-0">Tos:</span>
+                    <input type="text" value="Crónica matutina" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-blue-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-16 shrink-0">Sibilancias:</span>
+                    <input type="text" value="Ausentes" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-blue-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-20 shrink-0">Tabaquismo:</span>
+                    <input type="text" value="Ex-fumador" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-blue-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-slate-500 w-14 shrink-0">Paq-Año:</span>
+                    <input type="number" value="15" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 font-mono text-blue-700 text-right font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-emerald-700 w-20 shrink-0 font-semibold">Remisión M:</span>
+                    <input type="text" value="Valoración funcional" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-emerald-700 font-medium">
+                </div>
+                <div class="bg-slate-50/40 p-1.5 rounded-md border border-slate-100 flex items-center gap-2">
+                    <span class="text-emerald-700 w-16 shrink-0 font-semibold">Médico R:</span>
+                    <input type="text" value="Dr. Luis Arrieta" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-emerald-700 font-medium">
+                </div>
+            </div>
+
+            <!-- Línea de Parámetros Manuales Integrados -->
+            <div class="grid grid-cols-3 gap-3 mt-2 text-[11px]">
+                <div class="flex items-center gap-2"><span class="text-emerald-700 font-semibold shrink-0">Biomasa:</span><input type="text" value="Negativo" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-emerald-700"></div>
+                <div class="flex items-center gap-2"><span class="text-emerald-700 font-semibold shrink-0">Oxigenoterapia:</span><input type="text" value="No requiere" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-emerald-700"></div>
+                <div class="flex items-center gap-2"><span class="text-emerald-700 font-semibold shrink-0">Medicamentos:</span><input type="text" value="Salbutamol SOS" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-emerald-700"></div>
+            </div>
+        </section>
+
+        <!-- SUB-GRID DE ANTECEDENTES Y PROTOCOLO -->
+        <div class="grid grid-cols-12 gap-4">
+            
+            <!-- 2. ANTECEDENTES FISIOLÓGICOS (Ancho 5/12) -->
+            <section id="sec-2" class="col-span-5 bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                    <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">2. Antecedentes Antropométricos</h3>
+                    <div class="grid grid-cols-3 gap-2 bg-slate-50/60 p-2 rounded-lg border border-slate-150 font-mono">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-500 font-sans text-[11px]">Peso:</span>
+                            <input type="number" value="78.5" step="0.1" class="w-full bg-white border border-slate-200 rounded-md text-right px-1.5 py-1 text-slate-900 font-medium">
+                            <span class="text-slate-400 font-sans text-[10px]">kg</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-500 font-sans text-[11px]">Talla:</span>
+                            <input type="number" value="176" class="w-full bg-white border border-slate-200 rounded-md text-right px-1.5 py-1 text-slate-900 font-medium">
+                            <span class="text-slate-400 font-sans text-[10px]">cm</span>
+                        </div>
+                        <div class="flex items-center gap-1 bg-white px-2 border border-slate-200 rounded-md shadow-sm">
+                            <span class="text-slate-400 font-sans text-[10px]">IMC:</span>
+                            <span class="text-blue-600 font-bold text-right w-full text-[12px]">25.3</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3 text-[11px]">
+                    <div class="flex justify-between items-center bg-slate-50/30 p-1.5 rounded-md border border-slate-100">
+                        <span class="text-emerald-700 font-semibold">Hemoglobina:</span>
+                        <div class="flex items-center gap-1 font-mono"><input type="number" value="14.2" class="w-10 bg-white border border-slate-200 text-right rounded px-1 text-emerald-700 font-semibold"> <span class="text-slate-400 text-[10px]">g/dL</span></div>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-50/30 p-1.5 rounded-md border border-slate-100">
+                        <span class="text-emerald-700 font-semibold">Hematocrito:</span>
+                        <div class="flex items-center gap-1 font-mono"><input type="number" value="42.5" class="w-10 bg-white border border-slate-200 text-right rounded px-1 text-emerald-700 font-semibold"> <span class="text-slate-400 text-[10px]">%</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. PROTOCOLO Y ESFUERZO (Ancho 7/12) -->
+            <section id="sec-3" class="col-span-7 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">3. Protocolo de Esfuerzo Unificado</h3>
+                <div class="grid grid-cols-3 gap-2 bg-slate-50/60 p-2 rounded-lg border border-slate-150 font-mono text-[12px] mb-3">
+                    <div class="flex items-center justify-between px-2">
+                        <span class="text-slate-500 font-sans text-[11px]">Tiempo:</span>
+                        <span class="text-orange-600 font-bold">11:45 <span class="font-normal text-slate-400 text-[10px]">min</span></span>
+                    </div>
+                    <div class="flex items-center justify-between px-2 border-x border-slate-200">
+                        <span class="text-slate-500 font-sans text-[11px]">Carga M:</span>
+                        <span class="text-orange-600 font-bold">250 <span class="font-normal text-slate-400 text-[10px]">W</span></span>
+                    </div>
+                    <div class="flex items-center justify-between px-2">
+                        <span class="text-slate-500 font-sans text-[11px]">RER Máx:</span>
+                        <span class="text-orange-600 font-bold">1.15</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                    <div class="flex items-center gap-1.5"><span>Etapas:</span><input type="text" value="Rampa continua" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-emerald-700 font-medium"></div>
+                    <div class="flex items-center gap-1.5"><span>Monitor:</span><input type="text" value="ECG 12 Deriv" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-emerald-700 font-medium"></div>
+                    <div class="flex items-center gap-2"><span>Borg D: <input type="number" value="7" class="w-8 bg-white border border-slate-200 rounded text-center text-emerald-700 font-bold ml-1 py-0.5"></span><span class="ml-auto">Borg F: <input type="number" value="8" class="w-8 bg-white border border-slate-200 rounded text-center text-emerald-700 font-bold ml-1 py-0.5"></span></div>
+                    <div class="flex items-center gap-1.5"><span>Suspensión:</span><input type="text" value="Agotamiento muscular" class="w-full bg-white border border-slate-200 rounded px-2 py-0.5 text-emerald-700 font-medium"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 4. CAPACIDAD FUNCIONAL -->
+        <section id="sec-4" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">4. Capacidad Funcional (Consumo de Oxígeno y Predichos)</h3>
+            <div class="grid grid-cols-4 gap-3 text-[11px]">
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 font-mono">
+                    <span class="text-slate-500 font-sans font-medium block border-b border-slate-100 pb-1 mb-1.5">VO₂ Reposo</span>
+                    <div class="flex justify-between"><span>Abs: <span class="text-blue-600 font-bold">275 ml/m</span></span><span>Rel: <span class="text-blue-600 font-bold">3.5 ml/k</span></span></div>
+                </div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 font-mono">
+                    <span class="text-slate-500 font-sans font-medium block border-b border-slate-100 pb-1 mb-1.5">VO₂ Pico</span>
+                    <div class="flex justify-between"><span>Abs: <span class="text-emerald-600 font-bold">3450 ml</span></span><span>Rel: <span class="text-emerald-600 font-bold">43.9 ml</span></span></div>
+                </div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 font-mono">
+                    <span class="text-slate-500 font-sans font-medium block border-b border-slate-100 pb-1 mb-1.5">Carga e Inclinación</span>
+                    <div class="flex justify-between"><span>Pico: <span class="text-orange-600 font-bold">250 W</span></span><span>VO₂/W: <span class="text-slate-700 font-bold">10.2</span></span></div>
+                </div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 font-mono text-[10px]">
+                    <span class="text-slate-500 font-sans font-medium block border-b border-slate-100 pb-1 mb-1">Valores Predichos</span>
+                    <div class="flex justify-between text-slate-500"><span>VO₂: 3200ml | 40.5ml</span><span>W: 230 | Slp: 10.0</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. RESPUESTA CARDIOVASCULAR -->
+        <section id="sec-5" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">5. Respuesta Cardiovascular e Hemodinámica Racionalizada</h3>
+            <div class="space-y-1.5 font-mono">
+                <!-- FC Integrada -->
+                <div class="grid grid-cols-12 gap-2 items-center bg-slate-50/40 p-1.5 rounded-md border border-slate-150">
+                    <div class="col-span-3 text-slate-500 font-sans font-medium">Frecuencia Cardiaca:</div>
+                    <div class="col-span-9 flex gap-6 text-[11px]">
+                        <div>FC Reposo: <span class="text-emerald-600 font-bold">68 lpm</span></div>
+                        <div>FC Máxima: <span class="text-orange-600 font-bold">174 lpm</span></div>
+                        <div class="text-slate-400 font-sans">% Predicho: <span class="text-slate-700 font-bold">95%</span></div>
+                    </div>
+                </div>
+                <!-- PA Integrada -->
+                <div class="grid grid-cols-12 gap-2 items-center bg-slate-50/40 p-1.5 rounded-md border border-slate-150">
+                    <div class="col-span-3 text-slate-500 font-sans font-medium">Presión Arterial:</div>
+                    <div class="col-span-9 flex gap-6 text-[11px]">
+                        <div>PA Reposo: <span class="text-slate-700 font-semibold">120 / 80 mmHg</span></div>
+                        <div>PA Máxima: <span class="text-orange-600 font-bold">180 / 90 mmHg</span></div>
+                    </div>
+                </div>
+                <!-- Pulso O2 Integrado -->
+                <div class="grid grid-cols-12 gap-2 items-center bg-slate-50/40 p-1.5 rounded-md border border-slate-150">
+                    <div class="col-span-3 text-slate-500 font-sans font-medium">Pulso de Oxígeno:</div>
+                    <div class="col-span-9 flex gap-6 text-[11px] text-slate-400">
+                        <div>Reposo: <span class="text-slate-700">4.0 ml/lat</span></div>
+                        <div>Máx: <span class="text-emerald-600 font-bold">19.8 ml/lat</span></div>
+                        <div>Pred: <span>18.5 ml/lat</span></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Inputs Manuales Alineados Horizontalmente -->
+            <div class="grid grid-cols-3 gap-3 mt-2.5 text-[11px]">
+                <div class="flex items-center gap-1.5"><span>Recuperación:</span><input type="text" value="▲ 22 lpm al 1'" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-emerald-700 font-medium shadow-sm"></div>
+                <div class="flex items-center gap-1.5"><span>ECG:</span><input type="text" value="Ritmo sinusal, sin cambios ST" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-purple-700 font-medium shadow-sm"></div>
+                <div class="flex items-center gap-1.5"><span>Valoración C:</span><input type="text" value="Cronotrópica normal" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-purple-700 font-medium shadow-sm"></div>
+            </div>
+        </section>
+
+        <!-- 6. RESPUESTA VENTILATORIA -->
+        <section id="sec-6" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">6. Respuesta Ventilatoria y Mecánica Celular</h3>
+            <div class="grid grid-cols-3 gap-3 mb-2.5 font-mono text-[11px]">
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 flex justify-between"><span>VVM Pretest:</span><span class="text-slate-900 font-bold">125 L/m</span></div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 flex justify-between"><span>VE/MVV Máx:</span><span class="text-orange-600 font-bold">94.4 %</span></div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 flex justify-between"><span>VT/CI Máx:</span><span class="text-orange-600 font-bold">82.1 %</span></div>
+            </div>
+            <!-- Filas Horizontales Dobles Frecuencia / SpO2 -->
+            <div class="space-y-1.5 font-mono text-[11px]">
+                <div class="grid grid-cols-3 gap-3 bg-slate-50/30 p-2 rounded-md border border-slate-100">
+                    <span class="text-slate-500 font-sans font-medium">Ventilación Minuto (VE):</span>
+                    <span>VE Reposo: <span class="text-slate-700">9.2 L/m</span></span>
+                    <span>VE Máxima: <span class="text-orange-600 font-bold">118.0 L/m</span></span>
+                </div>
+                <div class="grid grid-cols-3 gap-3 bg-slate-50/30 p-2 rounded-md border border-slate-100">
+                    <span class="text-slate-500 font-sans font-medium">Frecuencia Respiratoria:</span>
+                    <span>Reposo: <span class="text-slate-700">14 br/m</span></span>
+                    <span>Máxima: <span class="text-orange-600 font-bold">42 br/m</span></span>
+                </div>
+                <div class="grid grid-cols-3 gap-3 bg-slate-50/30 p-2 rounded-md border border-slate-100">
+                    <span class="text-slate-500 font-sans font-medium">Saturación Oxígeno (SpO₂):</span>
+                    <span>SpO₂ Reposo: <span class="text-emerald-600 font-semibold">98 %</span></span>
+                    <span>SpO₂ Máxima: <span class="text-amber-600 font-bold">95 %</span></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. INTERCAMBIO GASEOSO -->
+        <section id="sec-7" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-blue-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-2 mb-2.5">7. Intercambio Gaseoso y Eficiencia</h3>
+            <div class="grid grid-cols-2 gap-3 mb-2 font-mono text-[11px]">
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 flex justify-between">
+                    <span class="text-slate-500 font-sans">Espacio Muerto (VD/VT):</span>
+                    <span>Reposo: 0.32 | <span class="text-emerald-600 font-bold">Máx: 0.24</span></span>
+                </div>
+                <div class="bg-slate-50/50 p-2 rounded-lg border border-slate-150 flex justify-between">
+                    <span class="text-slate-500 font-sans">Cápsula PETCO₂:</span>
+                    <span>Reposo: 36 | <span class="text-orange-600 font-bold">Máx: 40 mmHg</span></span>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-[11px] mt-2.5">
+                <div class="flex items-center gap-1.5"><span>Gases Art:</span><input type="text" value="No se realizó toma intra-esfuerzo" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-emerald-700 font-medium shadow-sm"></div>
+                <div class="flex items-center gap-1.5"><span>Umbral Anaer:</span><input type="text" value="VT1 detectado a los 5'30 (60%), VT2 a los 9'45 (87%)" class="w-full bg-white border border-slate-200 rounded px-2 py-1 text-purple-700 font-medium shadow-sm"></div>
+            </div>
+        </section>
+
+        <!-- 8. CONCLUSIONES -->
+        <section id="sec-8" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-emerald-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100 pb-1 mb-2">8. Conclusiones Globales e Interpretación Narrativa</h3>
+            <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <textarea class="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-800 font-mono text-[11px] h-16 resize-none leading-relaxed focus:border-emerald-500 focus:outline-none shadow-sm" placeholder="Texto libre conclusivo...">Prueba máxima limitada por fatiga muscular voluntaria. Capacidad funcional excelente (%VO2 pico = 108%). Respuestas cardiaca, presora e intercambio ventilatorio estables sin signos patológicos centrales.</textarea>
+            </div>
+        </section>
+
+    </main>
+
+</body>
+</html>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio | Ergo App{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <h2>Búsqueda de estudios</h2>
+    <p class="muted">Introduce un `patient_id_num` exacto para localizar estudios.</p>
+  </section>
+
+  <form method="post" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field">
+      <span>ID de paciente</span>
+      <input
+        type="text"
+        name="patient_id_num"
+        value="{{ result.patient_id_num if result else '' }}"
+        autocomplete="off"
+        required
+      >
+    </label>
+    <button type="submit" class="button">Buscar</button>
+  </form>
+
+  {% if result and result.studies %}
+    <section class="results-list">
+      <h3>Estudios encontrados</h3>
+      <div class="study-list">
+        {% for study in result.studies %}
+          <article class="study-card">
+            <div>
+              <strong>{{ study.full_name }}</strong>
+              <p class="muted">{{ study.visit_datetime }}</p>
+            </div>
+            <form action="{{ url_for('studies.select') }}" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="study_patient_id_num" value="{{ study.patient_id_num }}">
+              <input type="hidden" name="study_visit_datetime" value="{{ study.visit_datetime }}">
+              <button type="submit" class="button button-secondary">Abrir borrador</button>
+            </form>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

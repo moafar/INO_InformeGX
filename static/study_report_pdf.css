@@ -1,0 +1,78 @@
+@page {
+  size: A4;
+  margin: 30mm 16mm 20mm;
+  @top-center {
+    content: element(compactHeader);
+    vertical-align: middle;
+  }
+  @bottom-left {
+    content: element(reportFooter);
+    vertical-align: middle;
+  }
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    color: #66747c;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 7.5pt;
+    vertical-align: middle;
+  }
+}
+
+@page:first {
+  margin-top: 32mm;
+  @top-center {
+    content: element(firstLetterhead);
+    vertical-align: middle;
+  }
+}
+
+html { color: #17232d; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+body { margin: 0; }
+.clinical-report { width: 100%; }
+
+.first-page-letterhead { position: running(firstLetterhead); width: 178mm; height: 22mm; }
+.wide-letterhead-slot { width: 178mm; height: 22mm; }
+.wide-letterhead-slot img { display: block; width: 178mm; height: 22mm; object-fit: contain; }
+
+.compact-page-header { position: running(compactHeader); width: 178mm; height: 18mm; color: #26363f; }
+.compact-letterhead-slot { width: 178mm; height: 10mm; }
+.compact-letterhead-slot img { display: block; width: 178mm; height: 10mm; object-fit: contain; }
+.compact-patient-data { display: flex; align-items: baseline; gap: 3.5mm; min-height: 6mm; padding-top: 1.5mm; border-bottom: .55pt solid #cbd7dc; font-size: 7.5pt; line-height: 1.25; }
+.compact-patient-data strong { flex: 1 1 auto; color: #10242d; font-size: 8.3pt; overflow-wrap: break-word; }
+.compact-patient-data span { flex: 0 0 auto; color: #596971; }
+
+.running-footer { position: running(reportFooter); color: #66747c; font-size: 7.5pt; line-height: 1.2; white-space: nowrap; }
+
+.report-header { padding-bottom: 5.5mm; border-bottom: 1.2pt solid #17232d; }
+.report-kicker { margin: 0 0 1.8mm; color: #4d5e68; font-size: 8pt; font-weight: 700; letter-spacing: .12em; }
+h1 { margin: 0; color: #101c23; font-size: 20pt; line-height: 1.15; }
+.patient-identity { margin-top: 5mm; padding: 4mm 5mm 3.8mm; border-left: 2.2mm solid #0f5b55; border-radius: 1.8mm; background: #f3f7f7; }
+.patient-primary small { display: block; margin-bottom: 1mm; color: #5e6e76; font-size: 7pt; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.patient-primary strong { display: block; color: #10242d; font-size: 15pt; line-height: 1.2; overflow-wrap: break-word; }
+.patient-meta { display: flex; flex-wrap: wrap; gap: 3mm 8mm; margin: 3.3mm 0 0; }
+.patient-meta>div { min-width: 21mm; }
+.patient-meta dt { margin: 0 0 .7mm; color: #68767d; font-size: 6.8pt; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.patient-meta dd { margin: 0; color: #172932; font-size: 8.8pt; font-weight: 700; overflow-wrap: break-word; }
+
+.report-body { padding-top: 2mm; }
+.report-section { padding: 4mm .5mm 3.5mm; border-bottom: .5pt solid #ccd5d9; }
+.report-section:last-child { border-bottom: 0; }
+.report-section h2 { break-after: avoid; margin: 0 0 2.2mm; color: #111b21; font-size: 10pt; letter-spacing: .035em; line-height: 1.2; text-transform: uppercase; }
+.report-section p,
+.report-section li { color: #18242a; font-size: 9.4pt; line-height: 1.48; orphans: 3; widows: 3; overflow-wrap: break-word; }
+.report-section p { margin: 0 0 2mm; white-space: pre-wrap; }
+.report-section p:last-of-type { margin-bottom: 0; }
+.report-section ul { margin: 0; padding-left: 6mm; }
+.report-section li { margin: 0 0 1.3mm; padding-left: 1mm; }
+.report-section li:last-child { margin-bottom: 0; }
+.report-section cite { display: block; break-before: avoid; margin-top: 2mm; color: #596871; font-size: 7.5pt; line-height: 1.35; }
+.final-conclusions { padding-top: 2.5mm; border-top: .6pt solid #c8d8d5; font-weight: 600; }
+.final-conclusions p { break-inside: avoid; page-break-inside: avoid; margin-bottom: 3mm; }
+.final-conclusions p:last-child { margin-bottom: 0; }
+
+.signature-block { break-inside: avoid; page-break-inside: avoid; width: 92mm; min-height: 37mm; margin: 11mm 0 0 auto; padding-top: 2mm; color: #263740; }
+.signature-caption { margin: 0; color: #65747c; font-size: 7pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.signature-writing-space { height: 17mm; border-bottom: .65pt solid #65747c; }
+.signature-block p { margin: 1mm 0 0; font-size: 8.5pt; line-height: 1.3; }
+.signature-block .signature-name { margin-top: 1.8mm; color: #12262f; font-size: 10pt; font-weight: 700; }
+.signature-block .signature-institution { margin-top: 1.4mm; padding-top: 1.4mm; border-top: .45pt solid #d2dce0; color: #607079; font-size: 7.7pt; }
