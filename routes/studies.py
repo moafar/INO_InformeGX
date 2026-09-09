@@ -226,7 +226,7 @@ def create_version():
         draft = create_new_report_version(source_version_id=source_version_id, user_id=int(current_user.get_id()), username=current_user.username, role=current_user.role)
     except (TypeError, ValueError, DraftAccessError, DraftPermissionError, DraftStateError) as error:
         return _workflow_error(error)
-    if request.accept_mimetypes.best == "text/html":
+    if request.form.get("response_format") == "html":
         return redirect(url_for("studies.view_draft", draft_id=draft.id))
     return {"draft_id": str(draft.id), "revision": draft.revision, "state": draft.state, "created": True}
 

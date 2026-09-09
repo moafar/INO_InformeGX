@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, call, patch
+from uuid import uuid4
 
 from app import create_app
 from db import get_app_db, get_clinical_db
@@ -316,3 +317,36 @@ class AuthRouteTests(TestCase):
         with self.client.session_transaction() as session:
             self.assertNotIn("_user_id", session)
             self.assertNotIn(SIGNATURE_PROFILE_SESSION_KEY, session)
+
+    def test_create_version_redirects_html_forms_and_keeps_json_for_api_clients(self) -> None:
+        source_version_id = uuid4()
+        new_draft_id = uuid4()
+        created_draft = Mock(id=new_draft_id, revision=2, state="EN_FIRMA")
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+            session["_csrf_token"] = "synthetic-csrf"
+
+        with patch("routes.studies.create_new_report_version", return_value=created_draft):
+            html_response = self.client.post(
+                "/studies/versions/create",
+                data={
+                    "csrf_token": "synthetic-csrf",
+                    "version_id": str(source_version_id),
+                    "response_format": "html",
+                },
+                follow_redirects=False,
+            )
+            api_response = self.client.post(
+                "/studies/versions/create",
+                data={"csrf_token": "synthetic-csrf", "version_id": str(source_version_id)},
+                headers={"Accept": "application/json"},
+            )
+
+        self.assertEqual(html_response.status_code, 302)
+        self.assertEqual(html_response.headers["Location"], f"/studies/drafts/{new_draft_id}")
+        self.assertEqual(api_response.status_code, 200)
+        self.assertEqual(
+            api_response.get_json(),
+            {"draft_id": str(new_draft_id), "revision": 2, "state": "EN_FIRMA", "created": True},
+        )

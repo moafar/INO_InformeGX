@@ -331,7 +331,7 @@
       try {
       const formData = new FormData(form);
       form.querySelectorAll('input[type="checkbox"][data-report-control]').forEach((element) => {
-        if (!formData.has(element.name)) formData.append(element.name, "false");
+        if (!element.disabled && !formData.has(element.name)) formData.append(element.name, "false");
       });
       const response = await fetch(form.dataset.saveUrl, {
         method: "POST", body: formData, credentials: "same-origin", headers: { Accept: "application/json" },

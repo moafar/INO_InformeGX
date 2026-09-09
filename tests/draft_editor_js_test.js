@@ -14,6 +14,7 @@ function fakeControl(id, value, type = "text", checked = false, origin = "MANUAL
     value,
     type,
     checked,
+    disabled: false,
     dataset: { originalValue: type === "checkbox" ? String(checked) : value },
     listeners,
     addEventListener(event, listener) { listeners[event] = listener; },
@@ -88,6 +89,9 @@ function fakeButton(id) {
 }
 const detailButton = fakeButton("toggle-detail");
 byId["toggle-detail"] = detailButton;
+const saveNowButton = fakeButton("save-now");
+byId["save-now"] = saveNowButton;
+byId["save-status"] = { textContent: "", dataset: {} };
 
 const signButton = fakeButton("sign-report");
 const cancelPdf = fakeButton("cancel-pdf");
@@ -110,8 +114,11 @@ byId["pdf-confirm-dialog"] = pdfDialog;
 const form = {
   dataset: { signUrl: "/studies/drafts/sign", canSign: "true" },
   querySelectorAll(selector) {
-    assert.strictEqual(selector, "[data-report-control][id][name]");
-    return controls;
+    if (selector === "[data-report-control][id][name]") return controls;
+    if (selector === 'input[type="checkbox"][data-report-control]') {
+      return controls.filter((control) => control.type === "checkbox");
+    }
+    assert.fail(`Unexpected selector: ${selector}`);
   },
 };
 
@@ -152,12 +159,23 @@ const script = fs.readFileSync(
 );
 let fetchCalls = 0;
 let resolveFetch;
-const fakeFetch = () => {
+let lastRequest;
+const fakeFetch = (url, options) => {
   fetchCalls += 1;
+  lastRequest = { url, options };
   return new Promise((resolve) => { resolveFetch = resolve; });
 };
 class FakeFormData {
-  constructor(receivedForm) { assert.strictEqual(receivedForm, form); }
+  constructor(receivedForm) {
+    assert.strictEqual(receivedForm, form);
+    this.values = new Map();
+    controls.forEach((control) => {
+      if (control.disabled || (control.type === "checkbox" && !control.checked)) return;
+      this.append(control.name, control.type === "checkbox" ? "true" : control.value);
+    });
+  }
+  has(name) { return this.values.has(name); }
+  append(name, value) { this.values.set(name, value); }
 }
 const fakeUrl = {
   createObjectURL() { return "blob:synthetic-pdf"; },
@@ -243,6 +261,23 @@ assert.strictEqual(detailButton.textContent, "Ocultar detalle");
 assert.strictEqual(identity.hidden, false);
 assert.ok(pageClasses.has("detail-visible"));
 
+async function testDisabledCheckboxIsNotInjectedIntoSavePayload() {
+  byId["medicion_gases"].disabled = true;
+  byId["medicion_gases"].checked = true;
+  byId["draft-id"] = { value: "synthetic-draft" };
+  byId["draft-revision"] = { value: "1" };
+  form.dataset.saveUrl = "/studies/drafts/save";
+
+  saveNowButton.listeners.click();
+  assert.strictEqual(fetchCalls, 1);
+  assert.strictEqual(lastRequest.url, "/studies/drafts/save");
+  assert.strictEqual(lastRequest.options.body.has("medicion_gases"), false);
+
+  resolveFetch({ ok: true, json: async () => ({ revision: 2 }) });
+  await new Promise((resolve) => setImmediate(resolve));
+  fetchCalls = 0;
+}
+
 async function testSigningConfirmation() {
   signButton.listeners.click();
   assert.strictEqual(pdfDialog.open, true);
@@ -271,7 +306,8 @@ async function testSigningConfirmation() {
   assert.strictEqual(pdfError.hidden, true);
 }
 
-testSigningConfirmation()
+testDisabledCheckboxIsNotInjectedIntoSavePayload()
+  .then(testSigningConfirmation)
   .then(() => console.log("study_report.js: OK"))
   .catch((error) => {
     console.error(error);

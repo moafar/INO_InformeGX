@@ -16,6 +16,7 @@
     <form action="{{ url_for('studies.create_version') }}" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version_id" value="{{ version.id }}">
+      <input type="hidden" name="response_format" value="html">
       <button type="submit" class="button">Crear nueva versión</button>
     </form>
   </section>
