@@ -1,90 +1,100 @@
 # AGENTS.md
 
-## Propósito del repositorio
+## Propósito y flujo vigente
 
-- Aplicación web Flask para autenticación, búsqueda exacta de estudios y elaboración de borradores clínicos editables.
-- Estado actual del desarrollo:
-  - `auth` con persistencia de cuentas.
-  - Búsqueda exacta por `patient_id_num`.
-  - Selección de un estudio por fecha y hora.
-  - Borrador efímero en memoria, editable desde la interfaz.
-  - Sin persistencia de borradores, informes clínicos ni PDF.
+INO_InformeGX es una aplicación Flask para redactar informes de ergoespirometría
+con el flujo persistente `AUXILIAR → MÉDICO → COORDINADORA`:
 
-## Principios de trabajo
+1. Login.
+2. Búsqueda exacta de un estudio GX.
+3. AUXILIAR diligencia los controles MANUAL asignados en `PRELIMINAR`.
+4. MÉDICO toma, revisa, libera o firma una versión persistente.
+5. COORDINADORA genera a demanda el PDF de una versión `FIRMADO`.
 
-- Mantener el alcance de la V1: autenticación -> búsqueda exacta -> selección -> borrador completamente editable y efímero.
-- No introducir persistencia de datos clínicos, borradores, informes o PDF salvo que una tarea lo pida explícitamente.
-- No considerar definitivas fórmulas, puntuaciones o interpretaciones clínicas pendientes de validación.
-- Distinguir siempre entre `DIRECTO`, `CALCULADO`, `MANUAL`, `INTERPRETACIÓN`, `AUSENTE`, `PENDIENTE_DE_VALIDACIÓN` e `INCONSISTENTE`.
-- Si un dato no existe o no es fiable, dejarlo como ausente o pendiente de validación en lugar de inferirlo.
-- No usar tablas internas de Breeze o SQL Server ni decodificar `GXTestRawData`.
-- Tratar la fuente clínica como de solo lectura; no crear, restaurar, poblar ni modificar `staging.gx_analytics`.
-- Usar datos sintéticos en pruebas, ejemplos y logs. No versionar volcados, datos clínicos reales, identificadores, secretos ni credenciales.
+Firmar cierra una versión inmutable; no genera PDF ni crea una versión nueva.
+El PDF se genera en memoria y se audita por evento, sin almacenamiento permanente.
 
-## Configuración y entorno
+## Fuente clínica y seguridad
 
-- La configuración se resuelve por variables de entorno.
-- Variables relevantes:
-  - `APP_ENV`
-  - `SECRET_KEY`
-  - `AUTH_DATABASE_URL`
-  - `CLINICAL_DATABASE_URL`
-  - `SESSION_COOKIE_SECURE`
-- En desarrollo y pruebas pueden existir valores por defecto locales; en producción deben llegar por entorno.
-- La base clínica debe tratarse como lectura solamente.
+La fuente vigente es `Patient Query → patient_query_automate → PostgreSQL
+staging.gx_analytics`. Es estrictamente de solo lectura.
 
-## Arquitectura actual
+- Nunca modificar `patient_query_automate`, ETL o `staging.gx_analytics`.
+- Nunca consultar Breeze/SQL Server interno ni decodificar `GXTestRawData`.
+- Nunca escribir datos de aplicación en la base clínica.
+- No introducir fórmulas, umbrales o interpretaciones clínicas no aprobadas.
+- Usar exclusivamente datos sintéticos en pruebas, ejemplos, logs y documentación.
+- No versionar secretos, credenciales, certificados, tokens ni claves.
 
-- Entrada principal: `app.py`.
-- Configuración: `config.py`.
-- Conexiones de base de datos: `db.py`.
-- Rutas:
-  - `routes/auth.py`
-  - `routes/home.py`
-  - `routes/studies.py`
-  - `routes/errors.py`
-- Servicios:
-  - `services/auth.py`
-  - `services/search.py`
-  - `services/draft.py`
-  - `services/report_draft.py`
-  - `services/csrf.py`
-  - `services/passwords.py`
-  - `services/names.py`
-- Repositorios:
-  - `repositories/users.py`
-  - `repositories/studies.py`
-- Interfaz:
-  - `templates/`
-  - `static/`
-- Especificación de estructura del informe: `docs/estructura_informe.md`.
+## Modelo de controles
 
-## Flujo funcional vigente
+La fuente funcional única de los 93 controles es `services/study_report.py`; la
+clasificación aprobada está en `services/report_controls.py`:
 
-1. Inicio de sesión.
-2. Búsqueda exacta por `patient_id_num`.
-3. Selección del estudio identificado por fecha y hora.
-4. Apertura del borrador editable.
+- `DIRECTO`: 46 controles.
+- `CALCULADO`: 8 controles.
+- `MANUAL`: 16 controles.
+- `INTERPRETACIÓN`: 23 controles.
 
-## Reglas de implementación
+`EDITADO` es una condición, no un tipo, y solo aplica a DIRECTO/CALCULADO.
+Conserva valor original y vigente. No usar categorías formales AUSENTE,
+PENDIENTE_DE_VALIDACIÓN o INCONSISTENTE.
 
-- No asumir campos, secciones o métricas que no estén ya representados en el modelo o en la vista.
-- Al ampliar el informe, mantener la separación entre dato fuente, transformación y redacción narrativa.
-- Si una regla clínica requiere validación, documentarla como tal y no codificarla como verdad definitiva.
-- Cualquier cambio en búsqueda, mapeo clínico o narrativa debe ir acompañado de pruebas.
-- Si se toca el editor frontend, validar también el comportamiento del script en `tests/draft_editor_js_test.js`.
+`services/report_draft.py` es legado. No crear funcionalidad ni dependencias de
+runtime sobre él.
 
-## Verificación
+## Roles y permisos
 
-- Pruebas Python:
-  - `python -m unittest discover -s tests`
-- Si se modifica lógica de cliente:
-  - `node tests/draft_editor_js_test.js`
+- Estados persistentes: `PRELIMINAR`, `EN_FIRMA`, `PRELIMINAR_BLOQUEADO`,
+  `FIRMADO`.
+- `AUXILIAR`: solo puede editar sus 14 MANUAL asignados en `PRELIMINAR`.
+- `MEDICO`: toma `PRELIMINAR` o `PRELIMINAR_BLOQUEADO`; solo el propietario de
+  `EN_FIRMA` puede editar, liberar o firmar. Puede crear v2+ desde la última
+  versión firmada.
+- `COORDINADORA`: solo busca, selecciona versiones firmadas y genera/descarga PDF.
+- `EN_FIRMA` liberado o expirado pasa a `PRELIMINAR_BLOQUEADO`, nunca a
+  `PRELIMINAR`.
 
-## Comunicación
+La autorización siempre se valida en backend.
 
-- Responder de forma concisa con:
-  - resultado,
-  - archivos modificados,
-  - verificaciones ejecutadas,
-  - bloqueadores si los hubiera.
+## Persistencia y bloqueo
+
+La aplicación usa `APP_DATABASE_URL` (lectura/escritura) y
+`CLINICAL_DATABASE_URL` (solo lectura), ambas PostgreSQL.
+
+- Un único borrador activo por estudio app; las versiones firmadas son inmutables.
+- Estado funcional, ownership médico e infraestructura de concurrencia son
+  conceptos separados. El ownership dura 30 días desde la toma y no se renueva
+  con actividad; al expirar, pasa a `PRELIMINAR_BLOQUEADO` y se audita.
+- Autosave: 15 segundos; Guardar ahora persiste con revisión optimista.
+- Logout solo limpia locks técnicos heredados; no cambia estado ni ownership.
+- Cada versión firmada conserva snapshot completo, identidad técnica, perfil
+  textual del médico firmante y auditoría del workflow. Cada generación PDF
+  crea un evento con SHA-256 y tamaño, sin guardar los bytes.
+
+La identidad técnica del estudio se mantiene separada de los campos visibles y
+editables del informe. La selección GX se rechaza si el datasource devuelve más
+de un estudio para el mismo selector actual.
+
+## Arquitectura
+
+- Entrada/configuración: `app.py`, `config.py`, `db.py`.
+- Datasource GX: `services/gx_data_source.py` (`GXPostgresDataSource` actual;
+  preparado para `GXApiDataSource`).
+- Borradores/versiones: `services/draft_workflow.py`, `repositories/drafts.py`.
+- Informe: `services/study_report.py`, `services/report_narratives.py`.
+- PDF: `services/pdf_report.py` con WeasyPrint.
+- Migraciones reproducibles y explícitas: `ALLOW_APP_MIGRATIONS=1 python -m migrations`.
+
+## Despliegue y verificación
+
+`compose.yaml` prepara `web` (Gunicorn) y `postgres` con volumen persistente;
+PostgreSQL no publica el puerto 5432.
+
+Verificar siempre:
+
+```bash
+python -m unittest discover -s tests
+node tests/draft_editor_js_test.js
+git diff --check
+```

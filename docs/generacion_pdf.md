@@ -2,12 +2,11 @@
 
 ## Flujo
 
-`POST /studies/report.pdf` requiere sesión y el token CSRF del formulario. El
-servidor valida los controles, vuelve a recuperar un único estudio mediante
-`(patient_id_num, visit_datetime)` y aplica la precedencia ya usada por el
-borrador: el valor enviado prevalece en esta petición, tanto para campos
-manuales como para correcciones explícitas GX; si un GX no se envía, se usa el
-valor directo o derivado del registro exacto de `staging.gx_analytics`.
+`POST /studies/versions/report.pdf` requiere sesión COORDINADORA, token CSRF y
+una versión FIRMADA concreta. El servidor genera exclusivamente desde el
+snapshot persistido de esa versión; no recibe contenido clínico del navegador.
+Cada generación inserta un evento en `report_pdf_events`, vinculado a la versión,
+con SHA-256, tamaño, usuario coordinador e instante.
 
 Los narrativos se reconstruyen como texto plano en
 `services/report_narratives.py`. El endpoint no recibe ni utiliza el
@@ -16,20 +15,19 @@ plantilla exclusiva mediante WeasyPrint y mantiene los bytes en memoria.
 
 El orden transaccional es:
 
-1. autenticación, CSRF, formulario e identidad exacta;
-2. narrativos del servidor;
-3. bytes PDF definitivos;
+1. autenticación, CSRF y versión FIRMADA;
+2. narrativos del servidor desde el snapshot;
+3. bytes PDF definitivos en memoria;
 4. SHA-256 y tamaño de esos bytes;
-5. inserción y `commit` de la auditoría;
+5. inserción transaccional del evento PDF;
 6. respuesta de descarga con los mismos bytes.
 
-Una excepción al insertar o confirmar la auditoría ejecuta `rollback`; la
+Una excepción al insertar o confirmar el `report_pdf_event` ejecuta `rollback`; la
 respuesta PDF no se construye ni se entrega.
 
-El instante `generated_at` se determina una sola vez en UTC antes del
-renderizado. Ese mismo objeto se usa para el pie del PDF, convertido mediante
-`America/Bogota`, y para la fila de auditoría; el hash se sigue calculando sobre
-los bytes definitivos ya renderizados.
+El instante `generated_at` se determina una sola vez en UTC antes del renderizado.
+El PDF muestra el perfil textual persistido del médico que firmó la versión, no
+el de la coordinadora que lo genera.
 
 ## Presentación institucional
 
@@ -69,19 +67,16 @@ python -m weasyprint --info
 Si se incorpora otro sistema operativo o imagen base, debe verificarse primero
 contra las dependencias nativas indicadas por la versión fijada de WeasyPrint.
 
-## Migración manual
+## Migraciones reproducibles
 
-`migrations/002_create_report_pdf_audits.sql` se aplica únicamente a la base de
-autenticación. Crea `ergo_app.report_pdf_audits` con el estudio, el identificador
-y nombre del usuario autenticado, instante de generación, nombre, hash y tamaño.
-Incluye índices por estudio, usuario y hash; el hash no es único.
+`migrations/004_drafts_roles_versions.sql` crea la base persistente;
+`migrations/005_workflow_states_pdf_events.sql` añade estados, ownership médico,
+auditoría y eventos PDF; `migrations/006_add_vdvt_persistence.sql` conserva las
+alternativas VD/VT y su fuente seleccionada. Las migraciones son un paso
+explícito de despliegue y se ejecutan con
+`ALLOW_APP_MIGRATIONS=1 python -m migrations` contra `APP_DATABASE_URL`; nunca
+tocan la conexión clínica ni `staging.gx_analytics`.
 
-La migración no toca la conexión clínica ni `staging.gx_analytics`, y nunca se
-ejecuta al arrancar la aplicación.
-
-`migrations/003_create_user_signature_profiles.sql` crea en la misma base
-`ergo_app.user_signature_profiles`, una fila opcional por usuario con nombre de
-firma, profesión o especialidad, registro profesional y línea institucional.
-El repositorio la carga con el usuario autenticado y la sesión firmada conserva
-una copia acotada para el PDF. Sin fila se usa `users.full_name` como único dato
-de respaldo.
+Como backfill conservador, la migración 005 marca los borradores existentes como
+`PRELIMINAR_BLOQUEADO`: su historial de intervención médica anterior no puede
+inferirse de forma segura, por lo que no recuperan edición auxiliar automáticamente.

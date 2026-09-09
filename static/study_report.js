@@ -19,8 +19,31 @@
   const has = (id) => Boolean(value(id));
   const text = (id) => escapeHtml(value(id));
   const datum = (id, suffix = "") => `<em>${text(id)}${suffix}</em>`;
+  const datumOrDefault = (id, fallback) => `<em>${escapeHtml(value(id) || fallback)}</em>`;
   const strong = (id) => `<strong>${text(id)}</strong>`;
   const any = (ids) => ids.some(has);
+  const thresholdStatus = () => {
+    const normalized = value("umbral_anaerobio_alcanzado").normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
+    if (!normalized) return "absent";
+    if (["SI", "CONFIRMADO", "ALCANZADO"].includes(normalized)) return "confirmed";
+    if (normalized.includes("PROBABLE") || ["NO CLARAMENTE DEFINIDO", "NO DEFINIDO CLARAMENTE", "INDETERMINADO"].includes(normalized)) return "probable";
+    if (["NO", "NO ALCANZADO"].includes(normalized)) return "not_reached";
+    if (["NO EVALUABLE", "NO VALORABLE"].includes(normalized)) return "not_evaluable";
+    return "unknown";
+  };
+  const syncVdvtSource = () => {
+    const measured = has("medicion_gases");
+    const mode = document.getElementById("vdvt-source-mode");
+    if (mode) mode.textContent = measured ? "medido por gases arteriales" : "estimado";
+    ["gx_rest_vd_per_vt_meas", "gx_vo2_max_vd_per_vt_meas"].forEach((id) => {
+      const element = control(id);
+      if (!element) return;
+      element.value = measured
+        ? String(element.dataset.vdvtMeasuredValue ?? "")
+        : String(element.dataset.vdvtEstimatedValue ?? "");
+    });
+  };
 
   function narrative0() {
     const rows = [];
@@ -58,9 +81,9 @@
     ];
     if (has("medicion_gases")) items.push("Se realizó medición de gases arteriales en reposo e inmediatamente al terminar el ejercicio.");
     items.push("Se realizó monitoreo con oximetría de pulso, frecuencia cardiaca y tensión arterial.");
-    if (any(["gx_vo2_max_time_min", "cambio_watts_por_etapa", "gx_vo2_max_work_watts"])) {
+    {
       let line = has("gx_vo2_max_time_min") ? `La prueba tuvo una duración de ${datum("gx_vo2_max_time_min")} minutos. ` : "";
-      line += "Inicia con 3 minutos de reposo, luego 3 minutos de ejercicio sin carga y continúa con pedaleo con carga";
+      line += `Inicia con ${datumOrDefault("reposo_inicial_min", "3")} minutos de reposo, luego ${datumOrDefault("tiempo_sin_carga_min", "3")} minutos de ejercicio sin carga y continúa con pedaleo con carga`;
       if (has("cambio_watts_por_etapa")) line += ` en incrementos progresivos de ${datum("cambio_watts_por_etapa")} vatios`;
       if (has("gx_vo2_max_work_watts")) line += `, llegando a ${datum("gx_vo2_max_work_watts")} vatios, carga máxima tolerada por el paciente`;
       line += ", y finaliza con 1 minuto de recuperación.";
@@ -139,20 +162,37 @@
       if (has("vo2_minuto")) line += `El VO₂ al minuto de finalizar el ejercicio fue de ${datum("vo2_minuto", " ml/min")}.`;
       paragraphs.push(line.trim());
     }
-    if (any(["porc_pred_o2_latido_6", "interpretacion_o2_latido_6", "umbral_anaerobio_alcanzado"])) {
+    const threshold = thresholdStatus();
+    if (any(["gx_vo2_max_vo2_per_hr_ml_per_beat", "interpretacion_o2_latido_6"]) || threshold !== "absent") {
       let line = "";
-      if (has("porc_pred_o2_latido_6")) line += `El oxígeno latido (ml O₂/lat) correspondió al ${datum("porc_pred_o2_latido_6", "%")} del predicho. `;
+      if (has("gx_vo2_max_vo2_per_hr_ml_per_beat")) {
+        line += `El oxígeno latido ${datum("gx_vo2_max_vo2_per_hr_ml_per_beat")} (ml O₂/lat)`;
+        line += has("porc_pred_o2_latido_6") ? ` correspondió al ${datum("porc_pred_o2_latido_6", "%")} del predicho. ` : ". ";
+      }
       if (has("interpretacion_o2_latido_6")) line += `Se considera ${strong("interpretacion_o2_latido_6")}. `;
-      if (has("umbral_anaerobio_alcanzado")) line += `El umbral anaerobio ${strong("umbral_anaerobio_alcanzado")} fue alcanzado durante el ejercicio.`;
+      const hasEstimate = has("gx_at_ex_time_min") && has("porc_vo2_at_predicho");
+      if (threshold === "confirmed") {
+        line += "El umbral anaerobio fue alcanzado durante el ejercicio.";
+        if (hasEstimate) line += ` Fue a los ${datum("gx_at_ex_time_min")} min de inicio del ejercicio, ${datum("porc_vo2_at_predicho", "%")} de consumo de oxígeno máximo predicho.`;
+      } else if (threshold === "probable") {
+        line += "El umbral anaerobio no se definió con claridad";
+        line += hasEstimate ? `; se estima de forma probable a los ${datum("gx_at_ex_time_min")} min de inicio del ejercicio, ${datum("porc_vo2_at_predicho", "%")} de consumo de oxígeno máximo predicho.` : "; se considera probable.";
+      } else if (threshold === "not_reached") {
+        line += "No se alcanzó el umbral anaerobio durante el ejercicio.";
+      } else if (threshold === "not_evaluable") {
+        line += "El umbral anaerobio no fue evaluable.";
+      } else if (threshold === "unknown") {
+        line += `Estado del umbral anaerobio: ${strong("umbral_anaerobio_alcanzado")}.`;
+      }
       paragraphs.push(line.trim());
     }
     return paragraphs.length ? `<aside class="section-narrative cardiovascular-summary">${paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}</aside>` : "";
   }
 
   function narrative4() {
-    const threshold = value("umbral_anaerobio_alcanzado").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-    const notReached = threshold === "NO";
-    const reached = threshold === "SI";
+    const threshold = thresholdStatus();
+    const notReached = ["not_reached", "not_evaluable"].includes(threshold);
+    const reached = threshold === "confirmed";
     const paragraphs = [];
     const ventilation = ["interpretacion_curva_flujo_volumen", "pf_pre_mvv_l_per_min", "gx_rest_ve_btps_l_per_min", "gx_vo2_max_ve_btps_l_per_min", "reserva_respiratoria_pico_l", "interpretacion_reserva_pico_vvm", "gx_vo2_max_ve_per_mvv_pct", "gx_vo2_max_vt_per_ic_pct", "comportamiento_vvm"];
     if (any(ventilation)) {
@@ -162,7 +202,7 @@
       if (any(["gx_rest_ve_btps_l_per_min", "gx_vo2_max_ve_btps_l_per_min"])) {
         line += "La ventilación minuto (VE)";
         if (has("gx_rest_ve_btps_l_per_min")) line += ` fue de ${datum("gx_rest_ve_btps_l_per_min", " L/min")} en reposo`;
-        if (has("gx_vo2_max_ve_btps_l_per_min")) line += `${has("gx_rest_ve_btps_l_per_min") ? " y aumentó hasta " : " fue de "}${datum("gx_vo2_max_ve_btps_l_per_min", " L/min")} en ejercicio pico`;
+        if (has("gx_vo2_max_ve_btps_l_per_min")) line += `${has("gx_rest_ve_btps_l_per_min") ? " y alcanzó " : " fue de "}${datum("gx_vo2_max_ve_btps_l_per_min", " L/min (BTPS)")} en ejercicio pico`;
         line += ". ";
       }
       if (has("reserva_respiratoria_pico_l")) line += `Esto determina una reserva respiratoria en el ejercicio pico de ${datum("reserva_respiratoria_pico_l", " L/min")}. `;
@@ -197,7 +237,7 @@
     if (any(gas) || notReached || (reached && any(["gx_at_ve_per_vco2", "gx_at_ve_per_vo2"]))) {
       let line = "";
       if (any(["gx_rest_vd_per_vt_meas", "gx_vo2_max_vd_per_vt_meas"])) {
-        line += "El espacio muerto (VD/VT) medido por gases arteriales";
+        line += `El espacio muerto (VD/VT) ${has("medicion_gases") ? "medido por gases arteriales" : "estimado"}`;
         if (has("gx_rest_vd_per_vt_meas")) line += ` en reposo fue de ${datum("gx_rest_vd_per_vt_meas")}`;
         if (has("gx_vo2_max_vd_per_vt_meas")) line += `${has("gx_rest_vd_per_vt_meas") ? " y en el ejercicio máximo fue de " : " en el ejercicio máximo fue de "}${datum("gx_vo2_max_vd_per_vt_meas")}`;
         line += ". ";
@@ -215,6 +255,7 @@
       if (has("interpretacion_petco2_pico_reposo")) line += `La PETCO₂ en ejercicio pico respecto al reposo se considera ${strong("interpretacion_petco2_pico_reposo")}.`;
       paragraphs.push(line.trim());
     }
+    if (has("comentario_petco2")) paragraphs.push(text("comentario_petco2"));
     return paragraphs.length ? `<aside class="section-narrative ventilatory-summary">${paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}</aside>` : "";
   }
 
@@ -253,13 +294,113 @@
       const current = element.type === "checkbox" ? String(element.checked) : String(element.value ?? "");
       const original = String(element.dataset.originalValue ?? "");
       const field = element.closest("[data-origin]");
-      if (field && field.dataset.origin === "GX") field.dataset.edited = String(current !== original);
+      if (field && ["GX", "DIRECTO", "CALCULADO"].includes(field.dataset.origin)) field.dataset.edited = String(current !== original);
     });
   }
 
+  const saveNowButton = document.getElementById("save-now");
+  const saveStatus = document.getElementById("save-status");
+  const csrfToken = () => document.getElementById("report-csrf-token")?.value || "";
+  let dirty = false;
+  let lastSaveFailed = false;
+  let signedThisPage = false;
+  let autosaveTimer = null;
+  let saveInFlight = null;
+  let savePending = false;
+  let changeRevision = 0;
+  const setSaveStatus = (message, state = "") => {
+    if (!saveStatus) return;
+    saveStatus.textContent = message;
+    saveStatus.dataset.state = state;
+  };
+  const refreshSigningAvailability = () => {
+    if (signButton && !signing) {
+      signButton.disabled = signedThisPage || form.dataset.canSign !== "true" || dirty || lastSaveFailed || !form.dataset.signUrl;
+    }
+  };
+  const saveDraft = async () => {
+    if (!form.dataset.saveUrl || !document.getElementById("draft-id")) return true;
+    if (saveInFlight) {
+      savePending = true;
+      return saveInFlight;
+    }
+    const revisionAtRequest = changeRevision;
+    setSaveStatus("Guardando…", "saving");
+    saveNowButton && (saveNowButton.disabled = true);
+    saveInFlight = (async () => {
+      try {
+      const formData = new FormData(form);
+      form.querySelectorAll('input[type="checkbox"][data-report-control]').forEach((element) => {
+        if (!formData.has(element.name)) formData.append(element.name, "false");
+      });
+      const response = await fetch(form.dataset.saveUrl, {
+        method: "POST", body: formData, credentials: "same-origin", headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("No fue posible guardar el borrador.");
+      const payload = await response.json();
+      const revision = document.getElementById("draft-revision");
+      if (revision && payload.revision) revision.value = String(payload.revision);
+      dirty = changeRevision !== revisionAtRequest;
+      lastSaveFailed = false;
+      setSaveStatus(dirty ? "Cambios sin guardar" : "Guardado", dirty ? "dirty" : "saved");
+      refreshSigningAvailability();
+      return true;
+      } catch (_) {
+        lastSaveFailed = true;
+        setSaveStatus("Error de guardado", "error");
+        refreshSigningAvailability();
+        return false;
+      }
+    })();
+    try {
+      return await saveInFlight;
+    } finally {
+      saveInFlight = null;
+      saveNowButton && (saveNowButton.disabled = false);
+      if (dirty && !lastSaveFailed) {
+        if (savePending) {
+          savePending = false;
+          setTimeout(() => { saveDraft(); }, 0);
+        } else {
+          scheduleAutosave();
+        }
+      }
+    }
+  };
+  const scheduleAutosave = () => {
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => { autosaveTimer = null; saveDraft(); }, 15000);
+  };
+  const markDirty = () => {
+    if (!document.getElementById("draft-id")) return;
+    changeRevision += 1;
+    dirty = true;
+    setSaveStatus("Cambios sin guardar", "dirty");
+    refreshSigningAvailability();
+    scheduleAutosave();
+  };
   controls.forEach((element) => {
-    element.addEventListener("input", update);
-    element.addEventListener("change", update);
+    const handleChange = () => {
+      if (element.id === "medicion_gases") syncVdvtSource();
+      update();
+      markDirty();
+    };
+    element.addEventListener("input", handleChange);
+    element.addEventListener("change", handleChange);
+  });
+  saveNowButton?.addEventListener("click", () => {
+    if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+    saveDraft();
+  });
+  form.addEventListener?.("submit", (event) => {
+    event.preventDefault();
+    if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+    saveDraft();
+  });
+  window.addEventListener?.("beforeunload", (event) => {
+    if (!dirty && !lastSaveFailed) return;
+    event.preventDefault();
+    event.returnValue = "";
   });
   document.querySelectorAll(".section-head").forEach((button) => {
     button.addEventListener("click", () => {
@@ -283,64 +424,64 @@
   document.getElementById("view-report")?.addEventListener("click", () => document.getElementById("preview")?.scrollIntoView({ behavior: "smooth" }));
   document.getElementById("back-to-form")?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
 
-  const pdfButton = document.getElementById("generate-pdf");
+  const takeButton = document.getElementById("take-draft");
+  const releaseButton = document.getElementById("release-draft");
+  const signButton = document.getElementById("sign-report");
   const pdfDialog = document.getElementById("pdf-confirm-dialog");
   const cancelPdf = document.getElementById("cancel-pdf");
   const confirmPdf = document.getElementById("confirm-pdf");
   const pdfError = document.getElementById("pdf-dialog-error");
-  let generatingPdf = false;
+  let signing = false;
 
   const setPdfError = (message) => {
     if (!pdfError) return;
     pdfError.textContent = message;
     pdfError.hidden = !message;
   };
-  pdfButton?.addEventListener("click", () => {
-    if (pdfButton.disabled || generatingPdf) return;
+  const workflowRequest = async (url) => {
+    const response = await fetch(url, { method: "POST", body: new FormData(form), credentials: "same-origin", headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || "No fue posible completar la operación.");
+    }
+    return response.json();
+  };
+  takeButton?.addEventListener("click", async () => {
+    try { await workflowRequest(form.dataset.takeUrl); window.location.reload(); }
+    catch (error) { setSaveStatus(error instanceof Error ? error.message : "No fue posible tomar el informe.", "error"); }
+  });
+  releaseButton?.addEventListener("click", async () => {
+    try { await workflowRequest(form.dataset.releaseUrl); window.location.reload(); }
+    catch (error) { setSaveStatus(error instanceof Error ? error.message : "No fue posible liberar el informe.", "error"); }
+  });
+  signButton?.addEventListener("click", () => {
+    if (signButton.disabled || signing || dirty || lastSaveFailed) return;
     setPdfError("");
     pdfDialog?.showModal();
   });
   cancelPdf?.addEventListener("click", () => {
-    if (!generatingPdf) pdfDialog?.close();
+    if (!signing) pdfDialog?.close();
   });
   confirmPdf?.addEventListener("click", async () => {
-    if (generatingPdf || !form.dataset.pdfUrl) return;
-    generatingPdf = true;
-    pdfButton.disabled = true;
+    if (signing || !form.dataset.signUrl || dirty || lastSaveFailed) return;
+    signing = true;
+    signButton.disabled = true;
     confirmPdf.disabled = true;
     cancelPdf.disabled = true;
     pdfDialog?.setAttribute("aria-busy", "true");
     setPdfError("");
     try {
-      const response = await fetch(form.dataset.pdfUrl, {
-        method: "POST",
-        body: new FormData(form),
-        credentials: "same-origin",
-        headers: { Accept: "application/pdf" },
-      });
-      if (!response.ok) {
-        const serverMessage = (await response.text()).trim();
-        throw new Error(serverMessage || "No fue posible generar el PDF.");
-      }
-      const blob = await response.blob();
-      if (blob.type !== "application/pdf") throw new Error("La respuesta PDF no es válida.");
-      const disposition = response.headers.get("Content-Disposition") || "";
-      const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-      const filename = filenameMatch ? filenameMatch[1] : "informe_gx.pdf";
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(objectUrl);
+      const signed = await workflowRequest(form.dataset.signUrl);
       pdfDialog?.close();
+      signedThisPage = true;
+      setSaveStatus("Informe firmado. El PDF podrá ser generado por Coordinación.", "signed");
+      signButton.disabled = true;
+      if (signed.next_url) window.location.assign(signed.next_url);
     } catch (error) {
-      setPdfError(error instanceof Error ? error.message : "No fue posible generar el PDF.");
+      setPdfError(error instanceof Error ? error.message : "No fue posible firmar el informe.");
     } finally {
-      generatingPdf = false;
-      pdfButton.disabled = false;
+      signing = false;
+      refreshSigningAvailability();
       confirmPdf.disabled = false;
       cancelPdf.disabled = false;
       pdfDialog?.removeAttribute("aria-busy");

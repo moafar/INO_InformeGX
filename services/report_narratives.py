@@ -120,33 +120,27 @@ def _protocol(v: _Values) -> NarrativeSection:
         "tensión arterial."
     )
 
-    if v.any(
-        "gx_vo2_max_time_min",
-        "cambio_watts_por_etapa",
-        "gx_vo2_max_work_watts",
-    ):
-        line = ""
-        if v.has("gx_vo2_max_time_min"):
-            line = (
-                f"La prueba tuvo una duración de {v.value('gx_vo2_max_time_min')} "
-                "minutos. "
-            )
+    initial_rest = v.value("reposo_inicial_min") if v.has("reposo_inicial_min") else "3"
+    unloaded_time = v.value("tiempo_sin_carga_min") if v.has("tiempo_sin_carga_min") else "3"
+    line = ""
+    if v.has("gx_vo2_max_time_min"):
+        line = f"La prueba tuvo una duración de {v.value('gx_vo2_max_time_min')} minutos. "
+    line += (
+        f"Inicia con {initial_rest} minutos de reposo, luego {unloaded_time} minutos "
+        "de ejercicio sin carga y continúa con pedaleo con carga"
+    )
+    if v.has("cambio_watts_por_etapa"):
         line += (
-            "Inicia con 3 minutos de reposo, luego 3 minutos de ejercicio sin "
-            "carga y continúa con pedaleo con carga"
+            " en incrementos progresivos de "
+            f"{v.value('cambio_watts_por_etapa')} vatios"
         )
-        if v.has("cambio_watts_por_etapa"):
-            line += (
-                " en incrementos progresivos de "
-                f"{v.value('cambio_watts_por_etapa')} vatios"
-            )
-        if v.has("gx_vo2_max_work_watts"):
-            line += (
-                f", llegando a {v.value('gx_vo2_max_work_watts')} vatios, carga "
-                "máxima tolerada por el paciente"
-            )
-        line += ", y finaliza con 1 minuto de recuperación."
-        items.append(line)
+    if v.has("gx_vo2_max_work_watts"):
+        line += (
+            f", llegando a {v.value('gx_vo2_max_work_watts')} vatios, carga "
+            "máxima tolerada por el paciente"
+        )
+    line += ", y finaliza con 1 minuto de recuperación."
+    items.append(line)
 
     effort_keys = (
         "disnea_borg_inicial",
@@ -291,6 +285,64 @@ def _functional(v: _Values) -> NarrativeSection:
     )
 
 
+def _normalized_threshold(value: str) -> str:
+    return " ".join(
+        "".join(
+            character
+            for character in unicodedata.normalize("NFD", value)
+            if unicodedata.category(character) != "Mn"
+        ).upper().split()
+    )
+
+
+def _threshold_status(value: str) -> str:
+    normalized = _normalized_threshold(value)
+    if not normalized:
+        return "absent"
+    if normalized in {"SI", "CONFIRMADO", "ALCANZADO"}:
+        return "confirmed"
+    if (
+        "PROBABLE" in normalized
+        or normalized in {"NO CLARAMENTE DEFINIDO", "NO DEFINIDO CLARAMENTE", "INDETERMINADO"}
+    ):
+        return "probable"
+    if normalized in {"NO", "NO ALCANZADO"}:
+        return "not_reached"
+    if normalized in {"NO EVALUABLE", "NO VALORABLE"}:
+        return "not_evaluable"
+    return "unknown"
+
+
+def _threshold_narrative(v: _Values, status: str) -> str:
+    time_at = v.value("gx_at_ex_time_min")
+    percentage_at = v.value("porc_vo2_at_predicho")
+    has_estimate = bool(time_at and percentage_at)
+    if status == "confirmed":
+        line = "El umbral anaerobio fue alcanzado durante el ejercicio."
+        if has_estimate:
+            line += (
+                " Fue a los "
+                f"{time_at} min de inicio del ejercicio, "
+                f"{percentage_at}% de consumo de oxígeno máximo predicho."
+            )
+        return line
+    if status == "probable":
+        line = "El umbral anaerobio no se definió con claridad"
+        if has_estimate:
+            return (
+                f"{line}; se estima de forma probable a los {time_at} min de inicio "
+                f"del ejercicio, {percentage_at}% de consumo de oxígeno máximo predicho."
+            )
+        return f"{line}; se considera probable."
+    if status == "not_reached":
+        return "No se alcanzó el umbral anaerobio durante el ejercicio."
+    if status == "not_evaluable":
+        return "El umbral anaerobio no fue evaluable."
+    if status == "unknown":
+        return f"Estado del umbral anaerobio: {v.value('umbral_anaerobio_alcanzado')}."
+    return ""
+
+
 def _cardiovascular(v: _Values) -> NarrativeSection:
     paragraphs: list[str] = []
     primary = (
@@ -362,41 +414,35 @@ def _cardiovascular(v: _Values) -> NarrativeSection:
             )
         paragraphs.append(line.strip())
 
+    threshold_status = _threshold_status(v.value("umbral_anaerobio_alcanzado"))
     if v.any(
-        "porc_pred_o2_latido_6",
+        "gx_vo2_max_vo2_per_hr_ml_per_beat",
         "interpretacion_o2_latido_6",
-        "umbral_anaerobio_alcanzado",
-    ):
+    ) or threshold_status != "absent":
         line = ""
-        if v.has("porc_pred_o2_latido_6"):
+        if v.has("gx_vo2_max_vo2_per_hr_ml_per_beat"):
             line += (
-                "El oxígeno latido (ml O₂/lat) correspondió al "
-                f"{v.value('porc_pred_o2_latido_6')}% del predicho. "
+                "El oxígeno latido "
+                f"{v.value('gx_vo2_max_vo2_per_hr_ml_per_beat')} (ml O₂/lat)"
             )
+            if v.has("porc_pred_o2_latido_6"):
+                line += f" correspondió al {v.value('porc_pred_o2_latido_6')}% del predicho. "
+            else:
+                line += ". "
         if v.has("interpretacion_o2_latido_6"):
             line += f"Se considera {v.value('interpretacion_o2_latido_6')}. "
-        if v.has("umbral_anaerobio_alcanzado"):
-            line += (
-                f"El umbral anaerobio {v.value('umbral_anaerobio_alcanzado')} fue "
-                "alcanzado durante el ejercicio."
-            )
+        threshold_narrative = _threshold_narrative(v, threshold_status)
+        if threshold_narrative:
+            line += threshold_narrative
         paragraphs.append(line.strip())
 
     return NarrativeSection(SECTION_TITLES[3], tuple(paragraphs))
 
 
-def _normalized_threshold(value: str) -> str:
-    return "".join(
-        character
-        for character in unicodedata.normalize("NFD", value)
-        if unicodedata.category(character) != "Mn"
-    ).upper()
-
-
 def _ventilatory(v: _Values) -> NarrativeSection:
-    threshold = _normalized_threshold(v.value("umbral_anaerobio_alcanzado"))
-    not_reached = threshold == "NO"
-    reached = threshold == "SI"
+    threshold_status = _threshold_status(v.value("umbral_anaerobio_alcanzado"))
+    not_reached = threshold_status in {"not_reached", "not_evaluable"}
+    reached = threshold_status == "confirmed"
     paragraphs: list[str] = []
 
     ventilation = (
@@ -425,12 +471,12 @@ def _ventilatory(v: _Values) -> NarrativeSection:
                 line += f" fue de {v.value('gx_rest_ve_btps_l_per_min')} L/min en reposo"
             if v.has("gx_vo2_max_ve_btps_l_per_min"):
                 line += (
-                    " y aumentó hasta "
+                    " y alcanzó "
                     if v.has("gx_rest_ve_btps_l_per_min")
                     else " fue de "
                 )
                 line += (
-                    f"{v.value('gx_vo2_max_ve_btps_l_per_min')} L/min en ejercicio pico"
+                    f"{v.value('gx_vo2_max_ve_btps_l_per_min')} L/min (BTPS) en ejercicio pico"
                 )
             line += ". "
         if v.has("reserva_respiratoria_pico_l"):
@@ -520,7 +566,8 @@ def _ventilatory(v: _Values) -> NarrativeSection:
     ):
         line = ""
         if v.any("gx_rest_vd_per_vt_meas", "gx_vo2_max_vd_per_vt_meas"):
-            line += "El espacio muerto (VD/VT) medido por gases arteriales"
+            source_label = "medido por gases arteriales" if v.has("medicion_gases") else "estimado"
+            line += f"El espacio muerto (VD/VT) {source_label}"
             if v.has("gx_rest_vd_per_vt_meas"):
                 line += f" en reposo fue de {v.value('gx_rest_vd_per_vt_meas')}"
             if v.has("gx_vo2_max_vd_per_vt_meas"):
@@ -576,6 +623,9 @@ def _ventilatory(v: _Values) -> NarrativeSection:
                 f"{v.value('interpretacion_petco2_pico_reposo')}."
             )
         paragraphs.append(line.strip())
+
+    if v.has("comentario_petco2"):
+        paragraphs.append(v.value("comentario_petco2"))
 
     return NarrativeSection(SECTION_TITLES[4], tuple(paragraphs))
 

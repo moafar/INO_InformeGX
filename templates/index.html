@@ -37,7 +37,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="study_patient_id_num" value="{{ study.patient_id_num }}">
               <input type="hidden" name="study_visit_datetime" value="{{ study.visit_datetime }}">
-              <button type="submit" class="button button-secondary">Abrir borrador</button>
+              <button type="submit" class="button button-secondary">{% if current_user.role == 'COORDINADORA' %}Ver versiones firmadas{% else %}Abrir informe{% endif %}</button>
             </form>
           </article>
         {% endfor %}

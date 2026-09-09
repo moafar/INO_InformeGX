@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Versión firmada | Ergo App{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <h2>Versión {{ version.version_number }} · FIRMADO</h2>
+    <p class="muted">Firmada por {{ version.signed_by_username }}. Esta versión es inmutable.</p>
+  </section>
+  <section class="patient-bar">
+    <div class="patient-summary">
+      <strong>{{ draft.patient_full_name or 'Paciente sin identificar' }}</strong>
+      <span>ID {{ draft.field('patient_id_num').value or '—' }}</span>
+      <span>{{ draft.field('visit_date').value or '—' }}</span>
+    </div>
+    <form action="{{ url_for('studies.create_version') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="version_id" value="{{ version.id }}">
+      <button type="submit" class="button">Crear nueva versión</button>
+    </form>
+  </section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Versiones firmadas | Ergo App{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <h2>Versiones firmadas</h2>
+    <p class="muted">Selecciona una versión para generar su PDF.</p>
+  </section>
+  {% if versions %}
+    <div class="study-list">
+      {% for version in versions %}
+        <article class="study-card">
+          <div>
+            <strong>Versión {{ version.version_number }}</strong>
+            <p class="muted">Firmada por {{ version.signed_by_username }} · {{ version.signed_at }}</p>
+          </div>
+          <form action="{{ url_for('studies.report_pdf') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="version_id" value="{{ version.id }}">
+            <button type="submit" class="button">Generar PDF</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No hay versiones firmadas para este estudio.</p>
+  {% endif %}
+{% endblock %}

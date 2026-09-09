@@ -1,3 +1,11 @@
+# Artefacto histórico de importación
+
+> Este paquete corresponde a un demo anterior y no participa en el runtime de
+> INO_InformeGX. Sus plantillas, rutas de ejemplo y conteos de controles no
+> definen el workflow vigente. La referencia actual es
+> `templates/study_draft.html`, con 93 controles definidos en
+> `services/study_report.py`, persistencia propia y permisos de backend.
+
 # Plantilla Jinja — informe de ergoespirometría
 
 Paquete obtenido del demo aprobado. Incluye 87 controles, trazabilidad GX/MANUAL, resúmenes narrativos por sección, informe clínico consolidado, vista de impresión y actualización inmediata en el navegador.

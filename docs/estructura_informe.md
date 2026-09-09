@@ -595,4 +595,7 @@ El informe es efímero, narrativo y editable. Se construye a partir de un estado
 
 ## Elementos declarados como `PENDIENTE_DE_VALIDACIÓN` que no se muestran actualmente
 
+> Nota histórica: esta terminología pertenece al diseño anterior. El modelo
+> funcional vigente está definido en `docs/modelo_controles.md`.
+
 * Ninguno declarado en la implementación inspeccionada.

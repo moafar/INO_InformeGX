@@ -1,0 +1,40 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      APP_DATABASE_URL: postgresql://${POSTGRES_USER:-informegx}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-informegx}
+      CLINICAL_DATABASE_URL: ${CLINICAL_DATABASE_URL:?CLINICAL_DATABASE_URL is required}
+      SESSION_COOKIE_SECURE: "true"
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - app_internal
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-informegx}
+      POSTGRES_USER: ${POSTGRES_USER:-informegx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_internal
+
+networks:
+  app_internal: {}
+
+volumes:
+  app_postgres_data:

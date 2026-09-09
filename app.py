@@ -9,7 +9,7 @@ from flask_login import LoginManager
 
 from config import (
     get_config_class,
-    resolve_auth_database_url,
+    resolve_app_database_url,
     resolve_clinical_database_url,
     resolve_cookie_secure,
     resolve_secret_key,
@@ -48,9 +48,9 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config.from_object(config_class)
 
     environment = app.config["ENVIRONMENT"]
-    app.config["AUTH_DATABASE_URL"] = resolve_auth_database_url(
+    app.config["APP_DATABASE_URL"] = resolve_app_database_url(
         environment,
-        os.environ.get("AUTH_DATABASE_URL"),
+        os.environ.get("APP_DATABASE_URL"),
     )
     app.config["CLINICAL_DATABASE_URL"] = resolve_clinical_database_url(
         environment,

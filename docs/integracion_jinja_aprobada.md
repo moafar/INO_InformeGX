@@ -1,3 +1,5 @@
+> **Nota de vigencia:** este documento conserva decisiones y detalles de la integración Jinja original. Algunas referencias al borrador efímero, 87 controles y flujo PDF pertenecen al diseño histórico. El modelo funcional vigente de controles y workflow está documentado en `docs/modelo_controles.md`, `README.md` y `docs/generacion_pdf.md`.
+
 # Integración de la plantilla Jinja aprobada
 
 La página de resultados hereda de `templates/base.html` y conserva el flujo de

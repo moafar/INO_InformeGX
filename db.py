@@ -1,4 +1,4 @@
-"""Database helpers for the authentication and clinical sources."""
+"""Database helpers for the application and clinical sources."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ def _get_connection(
     g_key: str,
     *,
     connect_options: str | None = None,
+    autocommit: bool = False,
 ) -> psycopg.Connection:
     """Open one PostgreSQL connection per request and reuse it."""
     connection = getattr(g, g_key, None)
@@ -21,14 +22,19 @@ def _get_connection(
         connect_kwargs = {}
         if connect_options is not None:
             connect_kwargs["options"] = connect_options
-        connection = psycopg.connect(database_url, **connect_kwargs)
+        connection = psycopg.connect(database_url, autocommit=autocommit, **connect_kwargs)
         setattr(g, g_key, connection)
     return connection
 
 
-def get_auth_db() -> psycopg.Connection:
-    """Return the authentication database connection."""
-    return _get_connection("AUTH_DATABASE_URL", "auth_db")
+def get_app_db() -> psycopg.Connection:
+    """Return an APP connection with explicit transactions for every write unit.
+
+    Authentication reads run in autocommit mode so Flask-Login cannot leave an
+    implicit transaction open around a later draft write. Repositories that
+    mutate state must use ``connection.transaction()`` as their unit of work.
+    """
+    return _get_connection("APP_DATABASE_URL", "app_db", autocommit=True)
 
 
 def get_clinical_db() -> psycopg.Connection:
@@ -42,7 +48,7 @@ def get_clinical_db() -> psycopg.Connection:
 
 def close_db(_error: BaseException | None = None) -> None:
     """Close any open PostgreSQL connections."""
-    for key in ("auth_db", "clinical_db"):
+    for key in ("app_db", "clinical_db"):
         connection = getattr(g, key, None)
         if connection is not None:
             connection.close()

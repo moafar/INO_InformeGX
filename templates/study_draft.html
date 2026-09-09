@@ -7,20 +7,21 @@
 {% block content %}
 {% macro provenance(meta) -%}
   <span class="field-provenance" aria-hidden="true">
-    <small class="field-origin field-origin--{{ 'gx' if meta.origin == 'GX' else 'manual' }}">{{ meta.origin_label }}</small>
+    <small class="field-origin field-origin--{{ meta.variable_type|lower|replace('ó', 'o') }}">{{ meta.origin_label }}</small>
     <small class="field-source{{ '' if meta.source_columns else ' field-source--empty' }}" title="{{ meta.source_label }}">{{ meta.source_label }}</small>
   </span>
 {%- endmacro %}
 
-{% macro field(field_id, label, unit='', area=false) -%}
+{% macro field(field_id, label, unit='', area=false, placeholder='', vdvt_values=none) -%}
   {% set meta = draft.field(field_id) %}
-  <label class="field{{ ' field--area' if area else '' }}" for="{{ field_id }}" data-origin="{{ meta.origin }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
+  {% set editable = field_id in editable_control_ids %}
+  <label class="field{{ ' field--area' if area else '' }}" for="{{ field_id }}" data-origin="{{ meta.variable_type }}" data-editable="{{ 'true' if editable else 'false' }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
     <span>{{ label }}{{ provenance(meta) }}</span>
     <span class="control-wrap">
       {% if area %}
-        <textarea id="{{ field_id }}" name="{{ field_id }}" data-report-control data-original-value="{{ meta.original_value }}">{{ meta.value }}</textarea>
+        <textarea id="{{ field_id }}" name="{{ field_id }}" data-report-control data-original-value="{{ meta.original_value }}"{% if not editable %} readonly{% endif %}>{{ meta.value }}</textarea>
       {% else %}
-        <input id="{{ field_id }}" name="{{ field_id }}" value="{{ meta.value }}" data-report-control data-original-value="{{ meta.original_value }}">
+        <input id="{{ field_id }}" name="{{ field_id }}" value="{{ meta.value }}"{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if vdvt_values %} data-vdvt-measured-value="{{ vdvt_values[0] }}" data-vdvt-estimated-value="{{ vdvt_values[1] }}"{% endif %} data-report-control data-original-value="{{ meta.original_value }}"{% if not editable %} readonly{% endif %}>
       {% endif %}
       {% if unit %}<b>{{ unit }}</b>{% endif %}
     </span>
@@ -30,8 +31,9 @@
 {% macro checkbox(field_id, label) -%}
   {% set meta = draft.field(field_id) %}
   {% set checked = meta.value in [true, 1, '1', 'true', 'True', 'SI', 'SÍ', 'si', 'sí'] %}
-  <label class="field-checkbox" for="{{ field_id }}" data-origin="{{ meta.origin }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
-    <input id="{{ field_id }}" name="{{ field_id }}" type="checkbox" value="true" data-report-control data-original-value="{{ meta.original_value }}"{% if checked %} checked{% endif %}>
+  {% set editable = field_id in editable_control_ids %}
+  <label class="field-checkbox" for="{{ field_id }}" data-origin="{{ meta.variable_type }}" data-editable="{{ 'true' if editable else 'false' }}" data-edited="{{ 'true' if meta.edited else 'false' }}">
+    <input id="{{ field_id }}" name="{{ field_id }}" type="checkbox" value="true" data-report-control data-original-value="{{ meta.original_value }}"{% if checked %} checked{% endif %}{% if not editable %} disabled{% endif %}>
     <span>{{ label }}{{ provenance(meta) }}</span>
   </label>
 {%- endmacro %}
@@ -40,19 +42,23 @@
   <section class="workspace">
     <div class="workspace-title">
       <div>
-        <h2>Borrador del informe</h2>
+        <h2>Borrador del informe · {{ workflow_state|replace('_', ' ') }}</h2>
         <div class="workspace-meta">
-          <p>Formulario clínico compacto · <span id="filled-count">0</span> de <span id="total-count">87</span> campos diligenciados</p>
+          <p>Formulario clínico compacto · <span id="filled-count">0</span> de <span id="total-count">93</span> campos diligenciados</p>
           <span class="manual-key"><i aria-hidden="true"></i>Requiere intervención manual</span>
           {% if preview_mode %}<span class="preview-key">Vista previa con datos sintéticos</span>{% endif %}
         </div>
       </div>
     </div>
 
-    <form id="study-report-form" method="post" action="{{ url_for('studies.select') }}" data-pdf-url="{{ url_for('studies.report_pdf') }}">
+    <form id="study-report-form" method="post" action="{{ url_for('studies.select') }}" data-save-url="{{ url_for('studies.save_draft') }}" data-take-url="{{ url_for('studies.take_draft') }}" data-release-url="{{ url_for('studies.release_draft_route') }}" data-sign-url="{{ url_for('studies.sign_draft_route') }}" data-can-sign="{{ 'true' if can_sign else 'false' }}">
       <input type="hidden" id="report-csrf-token" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" id="lookup-patient-id" name="study_patient_id_num" value="{{ draft.lookup_patient_id_num }}">
       <input type="hidden" id="lookup-visit-datetime" name="study_visit_datetime" value="{{ draft.lookup_visit_datetime }}">
+      {% if persistent_draft and persistent_draft.id %}
+        <input type="hidden" id="draft-id" name="draft_id" value="{{ persistent_draft.id }}">
+        <input type="hidden" id="draft-revision" name="draft_revision" value="{{ persistent_draft.revision }}">
+      {% endif %}
 
       <div class="patient-bar">
         <div class="patient-summary">
@@ -65,8 +71,11 @@
         <div class="patient-actions">
           <button class="primary" id="view-report" type="button">Ver informe</button>
           <button class="ghost" id="toggle-detail" type="button" aria-pressed="false">Mostrar detalle</button>
-          <button class="ghost" id="update-draft" type="submit">Actualizar borrador</button>
-          <button class="primary" id="generate-pdf" type="button"{% if preview_mode %} disabled title="La vista sintética no corresponde a un estudio seleccionable"{% endif %}>Generar PDF</button>
+          <button class="ghost" id="save-now" type="button"{% if preview_mode or not editable_control_ids %} disabled{% endif %}>Guardar ahora</button>
+          <span id="save-status" class="save-status" aria-live="polite">{% if preview_mode %}Vista previa{% else %}Guardado{% endif %}</span>
+          {% if can_take %}<button class="primary" id="take-draft" type="button">Tomar para firma</button>{% endif %}
+          {% if can_release %}<button class="ghost" id="release-draft" type="button">Liberar</button>{% endif %}
+          {% if can_sign %}<button class="primary" id="sign-report" type="button">Firmar informe</button>{% endif %}
         </div>
       </div>
 
@@ -86,7 +95,7 @@
           <div class="group-grid">
             <fieldset class="group group--grow"><legend>Remisión</legend><div class="fields">
               {{ field('motivo_remision', 'Motivo de la remisión', area=true) }}
-              {{ field('diagnosis', 'Diagnóstico') }}
+              {{ field('diagnosis', 'Diagnóstico', area=true) }}
             </div></fieldset>
             <fieldset class="group"><legend>Antropometría</legend><div class="fields">
               {{ field('weight', 'Peso', 'kg') }}
@@ -118,26 +127,28 @@
         <button class="section-head" type="button" aria-expanded="true"><span class="step">2</span><strong>Protocolo</strong><span class="chevron up">⌄</span></button>
         <div class="section-body">
           <div class="group-grid">
-            <fieldset class="group"><legend>Prueba</legend><div class="fields">
+            <fieldset class="group group--protocol-timing"><legend>Tiempos de la prueba</legend><div class="fields">
               {{ field('gx_vo2_max_time_min', 'Duración', 'min') }}
-              {{ field('gx_vo2_max_work_watts', 'Carga máxima', 'W') }}
-              {{ field('porc_fc_maxima', '% de FC máxima predicha', '%') }}
+              {{ field('reposo_inicial_min', 'Reposo inicial', 'min', placeholder='3') }}
+              {{ field('tiempo_sin_carga_min', 'Tiempo sin carga', 'min', placeholder='3') }}
             </div></fieldset>
-            <fieldset class="group"><legend>Disnea (Borg)</legend><div class="fields">
+            <fieldset class="group"><legend>Prueba</legend><div class="fields">
+              {{ checkbox('medicion_gases', 'Medición de gases arteriales en reposo y al terminar') }}
+              {{ field('cambio_watts_por_etapa', 'Cambio de carga', 'W/etapa') }}
+              {{ field('gx_vo2_max_work_watts', 'Carga máxima', 'W') }}
+            </div></fieldset>
+            <fieldset class="group group--protocol-borg"><legend>Disnea (Borg)</legend><div class="fields">
               {{ field('disnea_borg_inicial', 'Inicial') }}
               {{ field('disnea_borg_final', 'Final') }}
             </div></fieldset>
-            <fieldset class="group"><legend>Fatiga (Borg)</legend><div class="fields">
+            <fieldset class="group group--protocol-borg"><legend>Fatiga (Borg)</legend><div class="fields">
               {{ field('fatiga_borg_inicial', 'Inicial') }}
               {{ field('fatiga_borg_final', 'Final') }}
             </div></fieldset>
-            <fieldset class="group"><legend>Etapas</legend><div class="fields">
-              {{ field('cambio_watts_por_etapa', 'Cambio de carga', 'W/etapa') }}
-              {{ checkbox('medicion_gases', 'Medición de gases arteriales en reposo y al terminar') }}
-            </div></fieldset>
-            <fieldset class="group group--grow"><legend>Esfuerzo</legend><div class="fields">
-              {{ field('gx_vo2_max_rer', 'RER') }}
-              {{ field('porc_o2_predicho', 'VO₂ predicho', '%') }}
+            <fieldset class="group group--protocol-effort"><legend>Esfuerzo</legend><div class="fields">
+              {{ field('porc_fc_maxima', '% de FC máx.', '%') }}
+              {{ field('porc_o2_predicho', 'VO₂ % pred.', '%') }}
+              {{ field('gx_vo2_max_rer', 'RER en ejercicio pico') }}
               {{ field('sugerencia_rer', 'Interpretación del RER') }}
             </div></fieldset>
           </div>
@@ -165,7 +176,7 @@
               {{ field('clase_funcional', 'Clase funcional:') }}
             </div></fieldset>
             <fieldset class="group group--grow"><legend>Trabajo</legend><div class="fields">
-              {{ field('relacion_consumo_trabajo', 'Pendiente VO₂/carga', 'ml/min/W') }}
+              {{ field('relacion_consumo_trabajo', 'Relación consumo trabajo', 'ml/min/W') }}
               {{ field('interpretacion_relacion_consumo_trabajo', 'Se considera:', area=true) }}
             </div></fieldset>
           </div>
@@ -183,8 +194,8 @@
               {{ field('gx_vo2_max_hr_bpm', 'FC máxima', 'lpm') }}
               {{ field('calif_fc', 'Frecuencia cardiaca:') }}
             </div></fieldset>
-            <fieldset class="group group--grow"><legend>Electrocardiograma</legend><div class="fields">
-              {{ field('ritmo_ekg', 'EKG en ritmo:', area=true) }}
+            <fieldset class="group group--electrocardiogram"><legend>Electrocardiograma</legend><div class="fields">
+              {{ field('ritmo_ekg', 'Análisis EKG', area=true) }}
             </div></fieldset>
             <fieldset class="group"><legend>Tensión arterial</legend><div class="fields">
               {{ field('gx_rest_sysbp_mmhg', 'Inicial sistólica', 'mmHg') }}
@@ -197,9 +208,14 @@
               {{ field('vo2_minuto', 'VO₂ al minuto') }}
             </div></fieldset>
             <fieldset class="group"><legend>Oxígeno latido</legend><div class="fields">
+              {{ field('gx_vo2_max_vo2_per_hr_ml_per_beat', 'Oxígeno latido máximo', 'ml O₂/lat') }}
               {{ field('porc_pred_o2_latido_6', 'Predicho', '%') }}
               {{ field('interpretacion_o2_latido_6', 'Se considera:') }}
-              {{ field('umbral_anaerobio_alcanzado', 'Logró umbral anaerobio') }}
+            </div></fieldset>
+            <fieldset class="group"><legend>Umbral</legend><div class="fields">
+              {{ field('umbral_anaerobio_alcanzado', 'Logró umbral anaerobio', placeholder='Sí, probable, no o no evaluable') }}
+              {{ field('gx_at_ex_time_min', 'Tiempo del umbral', 'min') }}
+              {{ field('porc_vo2_at_predicho', 'VO₂ en umbral % pred.', '%') }}
             </div></fieldset>
           </div>
           <div class="section-narrative-slot" data-section-narrative="3" aria-live="polite"></div>
@@ -210,18 +226,18 @@
         <button class="section-head" type="button" aria-expanded="true"><span class="step">5</span><strong>Respuesta ventilatoria</strong><span class="chevron up">⌄</span></button>
         <div class="section-body">
           <div class="group-grid">
-            <fieldset class="group group--ventilatory-top"><legend>Curva y ventilación</legend><div class="fields">
+            <fieldset class="group group--ventilatory-top"><legend>Curva y ventilación minuto</legend><div class="fields">
               {{ field('interpretacion_curva_flujo_volumen', 'Curva flujo-volumen basal:') }}
               {{ field('pf_pre_mvv_l_per_min', 'VVM medida', 'L/min') }}
               {{ field('gx_rest_ve_btps_l_per_min', 'VE en reposo', 'L/min') }}
-              {{ field('comportamiento_vvm', 'Observación adicional sobre VE:') }}
-            </div></fieldset>
-            <fieldset class="group group--ventilatory-top"><legend>Ejercicio pico</legend><div class="fields">
               {{ field('gx_vo2_max_ve_btps_l_per_min', 'VE en ejercicio pico', 'L/min') }}
+            </div></fieldset>
+            <fieldset class="group group--ventilatory-top"><legend>Reserva ventilatoria</legend><div class="fields">
               {{ field('reserva_respiratoria_pico_l', 'Reserva respiratoria en ejercicio pico', 'L/min') }}
               {{ field('interpretacion_reserva_pico_vvm', 'Se considera:') }}
               {{ field('gx_vo2_max_ve_per_mvv_pct', 'VE/VVM', '%') }}
               {{ field('gx_vo2_max_vt_per_ic_pct', 'VT/CI', '%') }}
+              {{ field('comportamiento_vvm', 'Observación adicional sobre VE:') }}
             </div></fieldset>
             <fieldset class="group group--ventilatory-top"><legend>Patrón respiratorio</legend><div class="fields">
               {{ field('gx_rest_rr_br_per_min', 'FR en reposo', 'rpm') }}
@@ -234,9 +250,10 @@
               {{ field('gx_rest_spo2_pct', 'SpO₂ reposo', '%') }}
               {{ field('gx_vo2_max_spo2_pct', 'SpO₂ final', '%') }}
             </div></fieldset>
-            <fieldset class="group group--gas-exchange"><legend>Intercambio gaseoso</legend><div class="fields">
-              {{ field('gx_rest_vd_per_vt_meas', 'VD/VT en reposo') }}
-              {{ field('gx_vo2_max_vd_per_vt_meas', 'VD/VT en ejercicio máximo') }}
+            {% set vdvt_source_mode = 'medido por gases arteriales' if draft.field('medicion_gases').value in [true, 1, '1', 'true', 'True', 'SI', 'SÍ', 'si', 'sí'] else 'estimado' %}
+            <fieldset class="group group--gas-exchange"><legend>Intercambio gaseoso · VD/VT <span id="vdvt-source-mode">{{ vdvt_source_mode }}</span></legend><div class="fields">
+              {{ field('gx_rest_vd_per_vt_meas', 'VD/VT en reposo', vdvt_values=draft.vdvt_source_values['gx_rest_vd_per_vt_meas']) }}
+              {{ field('gx_vo2_max_vd_per_vt_meas', 'VD/VT en ejercicio máximo', vdvt_values=draft.vdvt_source_values['gx_vo2_max_vd_per_vt_meas']) }}
               {{ field('relacion_vdvt_reposo', 'VD/VT en reposo se considera:') }}
               {{ field('comportamiento_relacion_vdvt', 'VD/VT entre reposo y ejercicio máximo:') }}
               {{ field('gx_at_ve_per_vco2', 'VE/VCO₂ en punto AT automático') }}
@@ -245,6 +262,9 @@
               {{ field('comportamiento_petco2_rest_ejercicio_total', 'Durante el ejercicio:') }}
               {{ field('comportamiento_petco2_rest_ejercicio_maximo', 'En ejercicio máximo:') }}
               {{ field('interpretacion_petco2_pico_reposo', 'En ejercicio pico respecto al reposo se considera:') }}
+            </div></fieldset>
+            <fieldset class="group group--petco2-comment"><legend>Comentario PETCO₂</legend><div class="fields">
+              {{ field('comentario_petco2', 'Comentario sobre PETCO₂', area=true) }}
             </div></fieldset>
           </div>
           <div class="section-narrative-slot" data-section-narrative="4" aria-live="polite"></div>
@@ -271,12 +291,12 @@
 
     <dialog class="pdf-confirm-dialog" id="pdf-confirm-dialog" aria-labelledby="pdf-dialog-title" aria-describedby="pdf-dialog-description">
       <div class="pdf-dialog-content">
-        <h2 id="pdf-dialog-title">Confirmar generación del informe</h2>
-        <p id="pdf-dialog-description">Se generará el PDF con la información que aparece actualmente en el informe. ¿Deseas continuar?</p>
+        <h2 id="pdf-dialog-title">¿Firmar informe?</h2>
+        <p id="pdf-dialog-description">Se cerrará esta versión con la información guardada. El PDF podrá generarse posteriormente por Coordinación.</p>
         <p class="pdf-dialog-error" id="pdf-dialog-error" role="alert" hidden></p>
         <div class="pdf-dialog-actions">
           <button class="ghost" id="cancel-pdf" type="button">Cancelar</button>
-          <button class="primary" id="confirm-pdf" type="button">Generar PDF</button>
+          <button class="primary" id="confirm-pdf" type="button">Firmar</button>
         </div>
       </div>
     </dialog>

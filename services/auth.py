@@ -7,7 +7,7 @@ from services.passwords import verify_password
 
 
 def authenticate_user(username: str, password: str) -> AuthUser | None:
-    """Authenticate a user against the auth database."""
+    """Authenticate a user against the application database."""
     cleaned_username = (username or "").strip()
     if not cleaned_username or not password:
         return None

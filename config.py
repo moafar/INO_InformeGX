@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 
-LOCAL_AUTH_DATABASE_URL = "dbname=ergo_app user=rom"
+LOCAL_APP_DATABASE_URL = "dbname=ergo_app user=rom"
 LOCAL_CLINICAL_DATABASE_URL = "dbname=obsino user=rom"
 LOCAL_SECRET_KEY = "dev-secret-key"
 
@@ -74,6 +74,7 @@ def _resolve_database_url(
     environment_name: str,
     explicit_url: str | None,
     local_fallback: str,
+    setting_name: str,
 ) -> str | None:
     if explicit_url:
         return explicit_url
@@ -81,18 +82,19 @@ def _resolve_database_url(
         return local_fallback
     if environment_name == "testing":
         return None
-    raise RuntimeError("DATABASE_URL is required in production")
+    raise RuntimeError(f"{setting_name} is required in production")
 
 
-def resolve_auth_database_url(
+def resolve_app_database_url(
     environment_name: str,
     explicit_url: str | None,
 ) -> str | None:
-    """Resolve the authentication database URL."""
+    """Resolve the application read/write database URL."""
     return _resolve_database_url(
         environment_name,
         explicit_url,
-        LOCAL_AUTH_DATABASE_URL,
+        LOCAL_APP_DATABASE_URL,
+        "APP_DATABASE_URL",
     )
 
 
@@ -105,6 +107,7 @@ def resolve_clinical_database_url(
         environment_name,
         explicit_url,
         LOCAL_CLINICAL_DATABASE_URL,
+        "CLINICAL_DATABASE_URL",
     )
 
 

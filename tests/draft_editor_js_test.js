@@ -22,15 +22,34 @@ function fakeControl(id, value, type = "text", checked = false, origin = "MANUAL
   };
 }
 
+const restVdvt = fakeControl("gx_rest_vd_per_vt_meas", "25", "text", false, "GX");
+restVdvt.dataset.vdvtMeasuredValue = "25";
+restVdvt.dataset.vdvtEstimatedValue = "30";
+const peakVdvt = fakeControl("gx_vo2_max_vd_per_vt_meas", "18", "text", false, "GX");
+peakVdvt.dataset.vdvtMeasuredValue = "18";
+peakVdvt.dataset.vdvtEstimatedValue = "22";
+
 const controls = [
   fakeControl("patient_first_name", "Ana", "text", false, "GX"),
   fakeControl("patient_middle_name", "", "text", false, "GX"),
   fakeControl("patient_last_name", "Prueba", "text", false, "GX"),
   fakeControl("conclusiones_definitivas", "<img src=x onerror=alert(1)>", "textarea"),
+  fakeControl("gx_vo2_max_time_min", ""),
+  fakeControl("reposo_inicial_min", "3"),
+  fakeControl("tiempo_sin_carga_min", "3"),
+  fakeControl("medicion_gases", "", "checkbox", true, "GX"),
+  restVdvt,
+  peakVdvt,
+  fakeControl("gx_vo2_max_vo2_per_hr_ml_per_beat", "11.2", "text", false, "GX"),
   fakeControl("umbral_anaerobio_alcanzado", "NO"),
+  fakeControl("gx_at_ex_time_min", "", "text", false, "GX"),
+  fakeControl("porc_vo2_at_predicho", "", "text", false, "GX"),
   fakeControl("gx_at_ve_per_vco2", "99", "text", false, "GX"),
   fakeControl("gx_at_ve_per_vo2", "88", "text", false, "GX"),
+  fakeControl("gx_rest_ve_btps_l_per_min", "18", "text", false, "GX"),
+  fakeControl("gx_vo2_max_ve_btps_l_per_min", "55", "text", false, "GX"),
   fakeControl("gx_vo2_max_ve_per_mvv_pct", "58", "text", false, "GX"),
+  fakeControl("comentario_petco2", "", "textarea"),
 ];
 const byId = Object.fromEntries(controls.map((control) => [control.id, control]));
 const textTargets = [
@@ -39,6 +58,7 @@ const textTargets = [
   "filled-count", "total-count",
 ];
 textTargets.forEach((id) => { byId[id] = { id, textContent: "" }; });
+byId["vdvt-source-mode"] = { textContent: "medido por gases arteriales" };
 
 const narrativeSlots = Array.from({ length: 6 }, () => [{ innerHTML: "" }, { innerHTML: "" }]);
 const pageClasses = new Set();
@@ -69,7 +89,7 @@ function fakeButton(id) {
 const detailButton = fakeButton("toggle-detail");
 byId["toggle-detail"] = detailButton;
 
-const pdfButton = fakeButton("generate-pdf");
+const signButton = fakeButton("sign-report");
 const cancelPdf = fakeButton("cancel-pdf");
 const confirmPdf = fakeButton("confirm-pdf");
 const pdfError = { textContent: "", hidden: true };
@@ -81,14 +101,14 @@ const pdfDialog = {
   setAttribute(name, value) { this.attributes[name] = value; },
   removeAttribute(name) { delete this.attributes[name]; },
 };
-byId["generate-pdf"] = pdfButton;
+byId["sign-report"] = signButton;
 byId["cancel-pdf"] = cancelPdf;
 byId["confirm-pdf"] = confirmPdf;
 byId["pdf-dialog-error"] = pdfError;
 byId["pdf-confirm-dialog"] = pdfDialog;
 
 const form = {
-  dataset: { pdfUrl: "/studies/report.pdf" },
+  dataset: { signUrl: "/studies/drafts/sign", canSign: "true" },
   querySelectorAll(selector) {
     assert.strictEqual(selector, "[data-report-control][id][name]");
     return controls;
@@ -145,7 +165,7 @@ const fakeUrl = {
 };
 vm.runInNewContext(script, {
   document,
-  window: { scrollTo() {} },
+  window: { scrollTo() {}, location: { assign() {} } },
   fetch: fakeFetch,
   FormData: FakeFormData,
   URL: fakeUrl,
@@ -162,7 +182,12 @@ assert.ok(!narrativeSlots[5][0].innerHTML.includes("<img src=x"));
 assert.ok(narrativeSlots[4][0].innerHTML.includes("no aplica"));
 assert.ok(!narrativeSlots[4][0].innerHTML.includes("99"));
 assert.ok(narrativeSlots[4][0].innerHTML.includes("58%"));
+assert.ok(narrativeSlots[4][0].innerHTML.includes("La ventilación minuto (VE) fue de <em>18 L/min</em> en reposo y alcanzó <em>55 L/min (BTPS)</em> en ejercicio pico."));
+assert.ok(narrativeSlots[4][0].innerHTML.includes("VD/VT) medido por gases arteriales en reposo fue de <em>25</em>"));
 assert.ok(!narrativeSlots[4][0].innerHTML.includes("0.58"));
+assert.ok(narrativeSlots[1][0].innerHTML.includes("Inicia con <em>3</em> minutos de reposo, luego <em>3</em> minutos de ejercicio sin carga y continúa con pedaleo con carga"));
+assert.ok(!narrativeSlots[1][0].innerHTML.includes("La prueba tuvo una duración"));
+assert.ok(narrativeSlots[3][0].innerHTML.includes("El oxígeno latido <em>11.2</em> (ml O₂/lat)"));
 assert.strictEqual(byId["report-patient-name"].textContent, "Ana Prueba");
 assert.strictEqual(byId["total-count"].textContent, String(controls.length));
 
@@ -174,49 +199,79 @@ assert.strictEqual(narrativeSlots[5][0].innerHTML, narrativeSlots[5][1].innerHTM
 assert.ok(narrativeSlots[4][0].innerHTML.includes("99"));
 assert.ok(!narrativeSlots[4][0].innerHTML.includes("no aplica"));
 
+byId["reposo_inicial_min"].value = "4";
+byId["reposo_inicial_min"].listeners.input();
+assert.ok(narrativeSlots[1][0].innerHTML.includes("Inicia con <em>4</em> minutos de reposo"));
+
+byId["gx_vo2_max_time_min"].value = "12";
+byId["gx_vo2_max_time_min"].listeners.input();
+assert.ok(narrativeSlots[1][0].innerHTML.includes("La prueba tuvo una duración de <em>12</em> minutos."));
+
+byId["medicion_gases"].checked = false;
+byId["medicion_gases"].listeners.input();
+assert.strictEqual(restVdvt.value, "30");
+assert.strictEqual(peakVdvt.value, "22");
+assert.strictEqual(byId["vdvt-source-mode"].textContent, "estimado");
+assert.ok(narrativeSlots[4][0].innerHTML.includes("VD/VT) estimado en reposo fue de <em>30</em>"));
+
+byId["comentario_petco2"].value = "Comentario manual sobre PETCO₂.";
+byId["comentario_petco2"].listeners.input();
+assert.ok(narrativeSlots[4][0].innerHTML.includes("Comentario manual sobre PETCO₂."));
+
+byId["gx_at_ex_time_min"].value = "06:26";
+byId["porc_vo2_at_predicho"].value = "36";
+byId["umbral_anaerobio_alcanzado"].value = "SÍ";
+byId["gx_at_ex_time_min"].listeners.input();
+assert.ok(narrativeSlots[3][0].innerHTML.includes("El umbral anaerobio fue alcanzado durante el ejercicio. Fue a los <em>06:26</em> min de inicio del ejercicio, <em>36%</em> de consumo de oxígeno máximo predicho."));
+
+byId["umbral_anaerobio_alcanzado"].value = "Probable, no claramente definido";
+byId["umbral_anaerobio_alcanzado"].listeners.input();
+assert.ok(narrativeSlots[3][0].innerHTML.includes("El umbral anaerobio no se definió con claridad; se estima de forma probable a los <em>06:26</em> min de inicio del ejercicio, <em>36%</em> de consumo de oxígeno máximo predicho."));
+
+byId["umbral_anaerobio_alcanzado"].value = "No alcanzado";
+byId["umbral_anaerobio_alcanzado"].listeners.input();
+assert.ok(narrativeSlots[3][0].innerHTML.includes("No se alcanzó el umbral anaerobio durante el ejercicio."));
+assert.ok(!narrativeSlots[3][0].innerHTML.includes("06:26"));
+
+byId["umbral_anaerobio_alcanzado"].value = "No evaluable";
+byId["umbral_anaerobio_alcanzado"].listeners.input();
+assert.ok(narrativeSlots[3][0].innerHTML.includes("El umbral anaerobio no fue evaluable."));
+assert.ok(!narrativeSlots[3][0].innerHTML.includes("06:26"));
+
 detailButton.listeners.click({ currentTarget: detailButton });
 assert.strictEqual(detailButton.textContent, "Ocultar detalle");
 assert.strictEqual(identity.hidden, false);
 assert.ok(pageClasses.has("detail-visible"));
 
-async function testPdfConfirmation() {
-  pdfButton.listeners.click();
+async function testSigningConfirmation() {
+  signButton.listeners.click();
   assert.strictEqual(pdfDialog.open, true);
   cancelPdf.listeners.click();
   assert.strictEqual(pdfDialog.open, false);
   assert.strictEqual(fetchCalls, 0);
 
-  pdfButton.listeners.click();
+  signButton.listeners.click();
   const pendingDownload = confirmPdf.listeners.click();
   assert.strictEqual(fetchCalls, 1);
-  assert.strictEqual(pdfButton.disabled, true);
+  assert.strictEqual(signButton.disabled, true);
   assert.strictEqual(confirmPdf.disabled, true);
   assert.strictEqual(cancelPdf.disabled, true);
   confirmPdf.listeners.click();
   assert.strictEqual(fetchCalls, 1);
   resolveFetch({
     ok: true,
-    blob: async () => ({ type: "application/pdf" }),
-    headers: {
-      get(name) {
-        return name === "Content-Disposition"
-          ? 'attachment; filename="informe_gx_12345678_2026-08-20.pdf"'
-          : null;
-      },
-    },
+    json: async () => ({ next_url: "" }),
   });
   await pendingDownload;
   assert.strictEqual(pdfDialog.open, false);
-  assert.strictEqual(pdfButton.disabled, false);
+  assert.strictEqual(signButton.disabled, true);
   assert.strictEqual(confirmPdf.disabled, false);
   assert.strictEqual(cancelPdf.disabled, false);
-  assert.strictEqual(downloads.length, 1);
-  assert.strictEqual(downloads[0].download, "informe_gx_12345678_2026-08-20.pdf");
-  assert.strictEqual(downloads[0].clicked, true);
+  assert.strictEqual(downloads.length, 0);
   assert.strictEqual(pdfError.hidden, true);
 }
 
-testPdfConfirmation()
+testSigningConfirmation()
   .then(() => console.log("study_report.js: OK"))
   .catch((error) => {
     console.error(error);

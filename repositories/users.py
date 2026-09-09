@@ -7,11 +7,11 @@ from datetime import datetime
 
 from flask_login import UserMixin
 
-from db import get_auth_db
+from db import get_app_db
 
 
 USER_COLUMNS = (
-    "u.id, u.username, u.full_name, u.password_hash, u.active, u.created_at, "
+    "u.id, u.username, u.full_name, u.password_hash, u.active, u.role, u.created_at, "
     "sp.signature_name, sp.profession_specialty, "
     "sp.professional_registration, sp.institutional_line"
 )
@@ -26,6 +26,7 @@ class AuthUser(UserMixin):
     full_name: str
     password_hash: str
     active: bool
+    role: str = "MEDICO"
     created_at: datetime | None = None
     signature_name: str | None = None
     profession_specialty: str | None = None
@@ -49,11 +50,12 @@ def _row_to_user(row) -> AuthUser | None:
         full_name=row[2],
         password_hash=row[3],
         active=bool(row[4]),
-        created_at=row[5],
-        signature_name=row[6],
-        profession_specialty=row[7],
-        professional_registration=row[8],
-        institutional_line=row[9],
+        role=row[5],
+        created_at=row[6],
+        signature_name=row[7],
+        profession_specialty=row[8],
+        professional_registration=row[9],
+        institutional_line=row[10],
     )
 
 
@@ -63,7 +65,7 @@ def get_user_by_username(username: str) -> AuthUser | None:
     if not cleaned_username:
         return None
 
-    with get_auth_db().cursor() as cursor:
+    with get_app_db().cursor() as cursor:
         cursor.execute(
             f"""
             SELECT {USER_COLUMNS}
@@ -83,7 +85,7 @@ def get_user_by_id(user_id: str | int) -> AuthUser | None:
     except (TypeError, ValueError):
         return None
 
-    with get_auth_db().cursor() as cursor:
+    with get_app_db().cursor() as cursor:
         cursor.execute(
             f"""
             SELECT {USER_COLUMNS}

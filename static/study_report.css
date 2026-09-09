@@ -31,11 +31,16 @@
 .study-report-page .chevron.up { transform:rotate(180deg); }
 .study-report-page .group-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:7px; padding:0 10px 8px; }
 .study-report-page .group { grid-column:span 2; min-width:0; margin:0; padding:8px 9px 9px; border:1px solid #cfdae0; border-radius:11px; background:var(--soft); }
+.study-report-page .group.group--protocol-borg { grid-column:span 2; }
+.study-report-page .group.group--protocol-effort { grid-column:span 4; }
 .study-report-page .group--grow { grid-column:span 3; }
+.study-report-page .group--electrocardiogram .control-wrap textarea { min-height:132px; }
 .study-report-page .group legend { padding:0 3px; font-weight:800; font-size:13px; color:#0d1f2b; }
 .study-report-page .group.group--ventilatory-top { grid-column:span 3; }
 .study-report-page .group.group--gas-exchange { grid-column:1/-1; }
 .study-report-page .group--gas-exchange .fields { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px 18px; align-items:start; }
+.study-report-page .group.group--petco2-comment { grid-column:1/-1; }
+.study-report-page .group--petco2-comment .control-wrap textarea { min-height:92px; }
 .study-report-page .group.group--conclusion-metrics { grid-column:span 3; }
 .study-report-page .group.group--conclusion-text { grid-column:span 9; }
 .study-report-page .group--conclusion-text .control-wrap textarea { min-height:126px; text-align:left; }
@@ -69,6 +74,13 @@
 .study-report-page .field-origin { letter-spacing:.06em; text-transform:uppercase; }
 .study-report-page .field-origin--gx { border-color:#9dc9c2; background:#e4f2ef; color:#0b5b53; }
 .study-report-page .field-origin--manual { border-color:#e6c98e; background:#fff5dc; color:#7a5210; }
+.study-report-page .field-origin--directo,.study-report-page .field-origin--calculado { border-color:#9dc9c2; background:#e4f2ef; color:#0b5b53; }
+.study-report-page .field-origin--interpretacion { border-color:#c8b5e8; background:#f1ecfa; color:#554178; }
+.study-report-page [data-editable="false"] .control-wrap input,.study-report-page [data-editable="false"] .control-wrap textarea { background:#f1f4f5; color:#64727a; cursor:not-allowed; }
+.study-report-page .save-status { font-size:12px; font-weight:700; color:#536775; }
+.study-report-page .save-status[data-state="saving"] { color:#76591f; }
+.study-report-page .save-status[data-state="saved"] { color:#0b5b53; }
+.study-report-page .save-status[data-state="error"] { color:#8a2424; }
 .study-report-page .field-source { overflow-wrap:anywhere; border-color:#c9d5db; background:#fff; color:#536775; font-family:"Courier New",monospace; font-weight:700; text-transform:none; }
 .study-report-page .field-source--empty { border-style:dashed; color:#7d8992; font-family:Arial,Helvetica,sans-serif; font-weight:600; }
 .study-report-page .control-wrap { min-width:0; display:flex; align-items:center; gap:5px; }
@@ -118,5 +130,6 @@
 .study-report-page .pdf-dialog-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:22px; }
 
 @media(max-width:1150px){.study-report-page .group,.study-report-page .group--grow{grid-column:span 4}.study-report-page .group.group--ventilatory-top{grid-column:span 6}.study-report-page .group--gas-exchange .fields{grid-template-columns:repeat(3,minmax(0,1fr))}.study-report-page .group.group--conclusion-metrics{grid-column:span 4}.study-report-page .group.group--conclusion-text{grid-column:span 8}.study-report-page .identity-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:760px){.study-report-body .page-shell{width:calc(100% - .5rem)}.study-report-page .workspace{padding:8px}.study-report-page .workspace-title{align-items:flex-start;flex-direction:column}.study-report-page .patient-bar{top:6px;align-items:flex-start;flex-direction:column;gap:8px}.study-report-page .patient-actions{align-self:stretch;justify-content:flex-end;flex-wrap:wrap}.study-report-page .patient-actions .primary,.study-report-page .patient-actions .ghost{padding:7px 12px}.study-report-page .patient-summary{gap:5px 7px}.study-report-page .patient-summary span{border:0;padding:0}.study-report-page .group,.study-report-page .group--grow,.study-report-page .group.group--ventilatory-top,.study-report-page .group.group--conclusion-metrics,.study-report-page .group.group--conclusion-text{grid-column:1/-1}.study-report-page .group--gas-exchange .fields{grid-template-columns:1fr}.study-report-page .identity-grid{grid-template-columns:1fr}.study-report-page .preview{padding:20px}.study-report-page .preview-head{align-items:flex-start;gap:15px;flex-direction:column}.study-report-page .report-patient-data{grid-template-columns:1fr 1fr}.study-report-page .report-patient-data>div{border-right:0;border-bottom:1px solid #d3dce0}.study-report-page .report-patient-data>div:last-child{border-bottom:0}.study-report-page .report-patient-name{grid-column:1/-1}.study-report-page .clinical-report .section-narrative p,.study-report-page .clinical-report .protocol-summary-list li{text-align:left}.study-report-page .field{grid-template-columns:minmax(110px,1fr) 1.2fr}}
+@media(max-width:760px){.study-report-body .page-shell{width:calc(100% - .5rem)}.study-report-page .workspace{padding:8px}.study-report-page .workspace-title{align-items:flex-start;flex-direction:column}.study-report-page .patient-bar{top:6px;align-items:flex-start;flex-direction:column;gap:8px}.study-report-page .patient-actions{align-self:stretch;justify-content:flex-end;flex-wrap:wrap}.study-report-page .patient-actions .primary,.study-report-page .patient-actions .ghost{padding:7px 12px}.study-report-page .patient-summary{gap:5px 7px}.study-report-page .patient-summary span{border:0;padding:0}.study-report-page .group,.study-report-page .group--grow,.study-report-page .group.group--protocol-timing,.study-report-page .group.group--ventilatory-top,.study-report-page .group.group--conclusion-metrics,.study-report-page .group.group--conclusion-text{grid-column:1/-1}.study-report-page .group--gas-exchange .fields{grid-template-columns:1fr}.study-report-page .identity-grid{grid-template-columns:1fr}.study-report-page .preview{padding:20px}.study-report-page .preview-head{align-items:flex-start;gap:15px;flex-direction:column}.study-report-page .report-patient-data{grid-template-columns:1fr 1fr}.study-report-page .report-patient-data>div{border-right:0;border-bottom:1px solid #d3dce0}.study-report-page .report-patient-data>div:last-child{border-bottom:0}.study-report-page .report-patient-name{grid-column:1/-1}.study-report-page .clinical-report .section-narrative p,.study-report-page .clinical-report .protocol-summary-list li{text-align:left}.study-report-page .field{grid-template-columns:minmax(110px,1fr) 1.2fr}}
+@media(max-width:760px){.study-report-page .group.group--protocol-borg,.study-report-page .group.group--protocol-effort{grid-column:1/-1}}
 @media print{.study-report-body{background:#fff}.study-report-body .site-header,.study-report-page .workspace-title,.study-report-page .patient-bar,.study-report-page .identity-grid,.study-report-page form,.study-report-page .preview-head{display:none!important}.study-report-body .page-shell,.study-report-page .workspace{width:100%;margin:0;padding:0;border:0}.study-report-page .preview{max-width:none;margin:0;padding:12mm 14mm;border:0;border-radius:0;box-shadow:none}.study-report-page .report-section{break-inside:avoid}}

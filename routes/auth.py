@@ -13,6 +13,7 @@ from services.signature_profile import (
     clear_signature_profile_from_session,
     store_signature_profile_in_session,
 )
+from repositories.drafts import release_locks_for_user
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -74,6 +75,7 @@ def logout():
     """Log out the current user."""
     if not validate_csrf_token(request.form.get("csrf_token")):
         return redirect(url_for("home.index"))
+    release_locks_for_user(int(current_user.get_id()))
     logout_user()
     clear_signature_profile_from_session()
     return redirect(url_for("auth.login"))
