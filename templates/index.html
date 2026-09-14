@@ -8,7 +8,7 @@
     <p class="muted">Introduce un `patient_id_num` exacto para localizar estudios.</p>
   </section>
 
-  <form method="post" class="stack-form">
+  <form action="{{ url_for('home.index') }}" method="post" class="stack-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label class="field">
       <span>ID de paciente</span>
