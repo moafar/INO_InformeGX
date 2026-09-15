@@ -246,6 +246,7 @@ class AuthRouteTests(TestCase):
             ("post", "/studies/drafts/take"),
             ("post", "/studies/drafts/release"),
             ("post", "/studies/drafts/sign"),
+            ("get", "/studies/versions"),
             ("post", "/studies/versions/create"),
             ("post", "/studies/versions/report.pdf"),
         ]

@@ -69,6 +69,9 @@
           <span id="sticky-date">{{ draft.field('visit_date').value or '—' }}</span>
         </div>
         <div class="patient-actions">
+          {% if not preview_mode and current_user.role == 'MEDICO' %}
+            <a class="ghost" href="{{ url_for('studies.versions', patient_id_num=draft.lookup_patient_id_num, visit_datetime=draft.lookup_visit_datetime) }}">Ver versiones firmadas</a>
+          {% endif %}
           <button class="primary" id="view-report" type="button">Ver informe</button>
           <button class="ghost" id="toggle-detail" type="button" aria-pressed="false">Mostrar detalle</button>
           <button class="ghost" id="save-now" type="button"{% if preview_mode or not editable_control_ids %} disabled{% endif %}>Guardar ahora</button>

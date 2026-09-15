@@ -19,10 +19,12 @@ from repositories.drafts import (
     DraftOwnershipError,
     DraftStateError,
     get_draft,
+    get_existing_draft_for_study,
     get_report_version,
     list_report_versions,
     record_pdf_event,
 )
+from repositories.users import get_user_by_id
 from services.csrf import validate_csrf_token
 from services.draft_workflow import (
     DraftPermissionError,
@@ -99,6 +101,41 @@ def _render_draft(draft, report, *, preview_mode: bool = False):
     )
 
 
+def _render_versions(patient_id_num: str, visit_datetime: datetime):
+    versions = list_report_versions(
+        patient_id_num=patient_id_num, visit_datetime=visit_datetime
+    )
+    draft = get_existing_draft_for_study(
+        patient_id_num=patient_id_num, visit_datetime=visit_datetime
+    )
+    active_draft = (
+        draft if draft is not None and draft.state in {EN_FIRMA, PRELIMINAR_BLOQUEADO} else None
+    )
+    active_draft_is_owner = False
+    active_owner_name = None
+    if (
+        current_user.role == MEDICO
+        and active_draft is not None
+        and active_draft.state == EN_FIRMA
+    ):
+        active_draft_is_owner = (
+            active_draft.medical_owner_user_id == int(current_user.get_id())
+        )
+        if not active_draft_is_owner:
+            owner = get_user_by_id(active_draft.medical_owner_user_id)
+            if owner is not None:
+                active_owner_name = owner.full_name or owner.username
+    return render_template(
+        "study_versions.html",
+        patient_id_num=patient_id_num,
+        visit_datetime=visit_datetime,
+        versions=versions,
+        active_draft=active_draft,
+        active_draft_is_owner=active_draft_is_owner,
+        active_owner_name=active_owner_name,
+    )
+
+
 @studies_bp.post("/studies/select")
 @login_required
 def select():
@@ -113,13 +150,19 @@ def select():
     if row is None:
         return render_template("index.html", result=None, error="El estudio ya no está disponible."), 404
     if current_user.role == COORDINADORA:
-        return render_template("study_versions.html", patient_id_num=patient_id_num, visit_datetime=parsed_visit, versions=list_report_versions(patient_id_num=patient_id_num, visit_datetime=parsed_visit))
+        return _render_versions(patient_id_num, parsed_visit)
     try:
         draft, report = open_persistent_draft(patient_id_num=patient_id_num, visit_datetime=parsed_visit, clinical_row=row)
     except DraftStateError as error:
         versions = list_report_versions(patient_id_num=patient_id_num, visit_datetime=parsed_visit)
         if current_user.role == MEDICO and versions:
-            return redirect(url_for("studies.view_version", version_id=versions[0].id))
+            return redirect(
+                url_for(
+                    "studies.versions",
+                    patient_id_num=patient_id_num,
+                    visit_datetime=parsed_visit.isoformat(),
+                )
+            )
         return render_template("index.html", result=None, error=str(error)), 409
     except DraftAccessError as error:
         return render_template("index.html", result=None, error=str(error)), 409
@@ -203,17 +246,34 @@ def view_draft(draft_id: UUID):
     return _render_draft(draft, report_view_for_draft(draft))
 
 
+@studies_bp.get("/studies/versions")
+@login_required
+def versions():
+    if current_user.role not in {MEDICO, COORDINADORA}:
+        abort(403)
+    patient_id_num = request.args.get("patient_id_num", "")
+    try:
+        visit_datetime = _audit_visit_datetime(request.args.get("visit_datetime", ""))
+    except ReportFormValidationError as error:
+        return str(error), 400
+    return _render_versions(patient_id_num, visit_datetime)
+
+
 @studies_bp.get("/studies/versions/<uuid:version_id>")
 @login_required
 def view_version(version_id: UUID):
+    if current_user.role not in {MEDICO, COORDINADORA}:
+        abort(403)
     version = get_report_version(version_id)
     if version is None:
         abort(404)
-    if current_user.role == COORDINADORA:
-        return render_template("study_versions.html", patient_id_num=version.lookup_patient_id_num, visit_datetime=version.lookup_visit_datetime, versions=[version])
-    if current_user.role != MEDICO:
-        abort(403)
-    return render_template("study_signed.html", version=version, draft=report_view_for_version(version))
+    report = report_view_for_version(version)
+    return render_template(
+        "study_signed.html",
+        version=version,
+        draft=report,
+        narratives=build_report_narratives(report),
+    )
 
 
 @studies_bp.post("/studies/versions/create")

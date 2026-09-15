@@ -19,6 +19,7 @@ from repositories.drafts import (
     PRELIMINAR,
     PRELIMINAR_BLOQUEADO,
     DraftOwnershipError,
+    DraftStateError,
     create_next_version,
     get_draft,
     get_report_version,
@@ -253,6 +254,55 @@ class PostgresWorkflowTests(TestCase):
         )
         with psycopg.connect(TEST_DATABASE_URL) as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM ergo_app.report_pdf_events").fetchone()[0], 0)
+
+    def test_new_version_requires_no_active_draft_and_latest_signed_source(self) -> None:
+        draft = self._draft()
+        with self.app.app_context():
+            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
+            signed_v1 = sign_draft(
+                draft_id=taken.id,
+                user_id=2,
+                username="med_a",
+                signer_signature_profile={"name": "Dra. Sintética"},
+                expected_values=taken.values,
+            )
+            v2 = create_next_version(
+                source_version_id=signed_v1.id, user_id=3, username="med_b"
+            )
+            with self.assertRaisesRegex(DraftStateError, "versión activa"):
+                create_next_version(
+                    source_version_id=signed_v1.id, user_id=2, username="med_a"
+                )
+
+            blocked_v2 = release_from_signature(
+                draft_id=v2.id, user_id=3, username="med_b"
+            )
+            self.assertEqual(blocked_v2.state, PRELIMINAR_BLOQUEADO)
+            with self.assertRaisesRegex(DraftStateError, "versión activa"):
+                create_next_version(
+                    source_version_id=signed_v1.id, user_id=2, username="med_a"
+                )
+
+            retaken_v2 = take_for_signature(
+                draft_id=blocked_v2.id, user_id=2, username="med_a"
+            )
+            signed_v2 = sign_draft(
+                draft_id=retaken_v2.id,
+                user_id=2,
+                username="med_a",
+                signer_signature_profile={"name": "Dra. Sintética"},
+                expected_values=retaken_v2.values,
+            )
+            with self.assertRaisesRegex(DraftStateError, "última versión firmada"):
+                create_next_version(
+                    source_version_id=signed_v1.id, user_id=3, username="med_b"
+                )
+            v3 = create_next_version(
+                source_version_id=signed_v2.id, user_id=3, username="med_b"
+            )
+
+        self.assertEqual(v3.next_version_number, 3)
+        self.assertEqual(v3.created_from_version_id, signed_v2.id)
 
     def test_conclusions_template_is_initialized_only_on_first_v1_take(self) -> None:
         draft = self._draft()

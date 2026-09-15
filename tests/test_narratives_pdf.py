@@ -116,6 +116,9 @@ class PdfRenderingTests(TestCase):
             id=uuid4(),
             version_number=1,
             signed_by_username="synthetic-doctor",
+            signed_at=datetime(2026, 8, 20, 20, 0, tzinfo=timezone.utc),
+            lookup_patient_id_num="90000001",
+            lookup_visit_datetime=datetime(2026, 8, 20, 17, 43, 15),
         )
         with self.app.test_request_context():
             informed_signed_html = render_template(

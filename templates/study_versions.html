@@ -5,8 +5,26 @@
 {% block content %}
   <section class="page-heading">
     <h2>Versiones firmadas</h2>
-    <p class="muted">Selecciona una versión para generar su PDF.</p>
+    <p class="muted">Consulta el informe inmutable de cada versión firmada.</p>
   </section>
+  {% if active_draft %}
+    <article class="study-card">
+      <div>
+        <strong>Versión activa {{ active_draft.next_version_number }}</strong>
+        <p class="muted">Estado actual: {{ active_draft.state }}</p>
+      </div>
+      {% if current_user.role == 'MEDICO' %}
+        <div>
+          {% if active_draft.state == 'PRELIMINAR_BLOQUEADO' or active_draft_is_owner %}
+            <a class="button button-secondary" href="{{ url_for('studies.view_draft', draft_id=active_draft.id) }}">Continuar editando</a>
+          {% else %}
+            {% if active_owner_name %}<p class="muted">En edición por: {{ active_owner_name }}</p>{% endif %}
+            <a class="button button-secondary" href="{{ url_for('studies.view_draft', draft_id=active_draft.id) }}">Ver en solo lectura</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </article>
+  {% endif %}
   {% if versions %}
     <div class="study-list">
       {% for version in versions %}
@@ -15,15 +33,28 @@
             <strong>Versión {{ version.version_number }}</strong>
             <p class="muted">Firmada por {{ version.signed_by_username }} · {{ version.signed_at }}</p>
           </div>
-          <form action="{{ url_for('studies.report_pdf') }}" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="version_id" value="{{ version.id }}">
-            <button type="submit" class="button">Generar PDF</button>
-          </form>
+          <div>
+            <a class="button button-secondary" href="{{ url_for('studies.view_version', version_id=version.id) }}">Ver informe</a>
+            {% if current_user.role == 'COORDINADORA' %}
+              <form action="{{ url_for('studies.report_pdf') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="version_id" value="{{ version.id }}">
+                <button type="submit" class="button">Generar PDF</button>
+              </form>
+            {% endif %}
+          </div>
         </article>
       {% endfor %}
     </div>
   {% else %}
-    <p class="muted">No hay versiones firmadas para este estudio.</p>
+    <p class="muted">No hay versiones firmadas</p>
+  {% endif %}
+  {% if current_user.role == 'MEDICO' and versions and not active_draft %}
+    <form action="{{ url_for('studies.create_version') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="version_id" value="{{ versions[0].id }}">
+      <input type="hidden" name="response_format" value="html">
+      <button type="submit" class="button">Crear nueva versión</button>
+    </form>
   {% endif %}
 {% endblock %}

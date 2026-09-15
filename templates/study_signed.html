@@ -1,25 +1,45 @@
 {% extends "base.html" %}
 
 {% block title %}Versión firmada | Ergo App{% endblock %}
+{% block body_class %}study-report-body{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='study_report.css') }}">{% endblock %}
 
 {% block content %}
-  <section class="page-heading">
-    <h2>Versión {{ version.version_number }} · FIRMADO</h2>
-    <p class="muted">Firmada por {{ version.signed_by_username }}. Esta versión es inmutable.</p>
-    {% set medico_remitente = draft.field('medico_remitente').value %}
-    {% if medico_remitente and medico_remitente|string|trim %}<p><strong>Médico remitente:</strong> {{ medico_remitente|string|trim }}</p>{% endif %}
-  </section>
-  <section class="patient-bar">
-    <div class="patient-summary">
-      <strong>{{ draft.patient_full_name or 'Paciente sin identificar' }}</strong>
-      <span>ID {{ draft.field('patient_id_num').value or '—' }}</span>
-      <span>{{ draft.field('visit_date').value or '—' }}</span>
-    </div>
-    <form action="{{ url_for('studies.create_version') }}" method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="version_id" value="{{ version.id }}">
-      <input type="hidden" name="response_format" value="html">
-      <button type="submit" class="button">Crear nueva versión</button>
-    </form>
-  </section>
+  <div class="study-report-page">
+    <section class="workspace">
+      <section class="page-heading">
+        <h2>Versión {{ version.version_number }} · FIRMADO</h2>
+        <p class="muted">Firmada por {{ version.signed_by_username }} el {{ version.signed_at }}. Esta versión es inmutable.</p>
+        {% set medico_remitente = draft.field('medico_remitente').value %}
+        {% if medico_remitente and medico_remitente|string|trim %}<p><strong>Médico remitente:</strong> {{ medico_remitente|string|trim }}</p>{% endif %}
+        <a class="button button-secondary" href="{{ url_for('studies.versions', patient_id_num=version.lookup_patient_id_num, visit_datetime=version.lookup_visit_datetime.isoformat()) }}">Volver a versiones firmadas</a>
+      </section>
+      <article class="preview clinical-report">
+        <header class="report-header">
+          <p class="report-kicker">PRUEBA DE EJERCICIO CARDIOPULMONAR</p>
+          <h2>Informe de resultados</h2>
+          <div class="report-patient-data">
+            <div class="report-patient-name"><small>Paciente</small><strong>{{ draft.patient_full_name or 'Paciente sin identificar' }}</strong></div>
+            <div><small>Identificación</small><strong>{{ draft.field('patient_id_num').value or '—' }}</strong></div>
+            <div><small>Edad</small><strong>{% if draft.field('age').value != '' %}{{ draft.field('age').value }} años{% else %}—{% endif %}</strong></div>
+            <div><small>Sexo</small><strong>{{ draft.field('sex').value or '—' }}</strong></div>
+            <div><small>Fecha del estudio</small><strong>{{ draft.field('visit_date').value or '—' }}</strong></div>
+          </div>
+        </header>
+        <div class="report-body">
+          {% for section in narratives %}
+            <section class="report-section">
+              <h3>{{ section.title }}</h3>
+              {% if section.bulleted and section.fragments %}
+                <ul>{% for fragment in section.fragments %}<li>{{ fragment }}</li>{% endfor %}</ul>
+              {% else %}
+                {% for fragment in section.fragments %}<p>{{ fragment }}</p>{% endfor %}
+              {% endif %}
+              {% if section.citation %}<cite>{{ section.citation }}</cite>{% endif %}
+            </section>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+  </div>
 {% endblock %}
