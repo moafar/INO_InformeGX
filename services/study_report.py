@@ -1,4 +1,4 @@
-"""Preparation of the approved 93-control study report form.
+"""Preparation of the approved 94-control study report form.
 
 The clinical row is treated as immutable source data.  Values submitted by the
 ephemeral form may temporarily correct a GX control, but the original GX value
@@ -22,7 +22,8 @@ REPORT_CONTROL_IDS = (
     "patient_first_name", "patient_middle_name", "patient_last_name", "age", "sex",
     "visit_date", "patient_id_num", "motivo_remision", "diagnosis", "weight", "height",
     "bmi", "hb", "hc", "disnea_mrc", "tbco_prod", "pk_yrs", "biomasa", "oxigeno",
-    "medicamentos", "gx_vo2_max_time_min", "reposo_inicial_min", "tiempo_sin_carga_min",
+    "medicamentos", "medico_remitente", "gx_vo2_max_time_min", "reposo_inicial_min",
+    "tiempo_sin_carga_min",
     "gx_vo2_max_work_watts", "porc_fc_maxima",
     "disnea_borg_inicial", "disnea_borg_final", "fatiga_borg_inicial", "fatiga_borg_final",
     "cambio_watts_por_etapa", "medicion_gases", "gx_vo2_max_rer", "porc_o2_predicho",
@@ -53,7 +54,7 @@ REPORT_CONTROL_IDS = (
 )
 
 if set(REPORT_CONTROL_IDS) != set(CONTROL_TYPES):
-    raise RuntimeError("La clasificación aprobada debe cubrir exactamente los 93 controles.")
+    raise RuntimeError("La clasificación aprobada debe cubrir exactamente los 94 controles.")
 
 
 DIRECT_FIELD_SOURCES: dict[str, tuple[str, ...]] = {

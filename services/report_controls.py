@@ -1,4 +1,4 @@
-"""Authoritative classification and edit permissions for the 93 report controls."""
+"""Authoritative classification and edit permissions for the 94 report controls."""
 
 from __future__ import annotations
 
@@ -34,9 +34,9 @@ CALCULATED_CONTROL_IDS = frozenset(
 )
 
 AUXILIAR_MANUAL_CONTROL_IDS = frozenset(
-    """motivo_remision hb hc disnea_mrc biomasa oxigeno medicamentos reposo_inicial_min
-    tiempo_sin_carga_min disnea_borg_inicial disnea_borg_final fatiga_borg_inicial
-    fatiga_borg_final cambio_watts_por_etapa""".split()
+    """motivo_remision hb hc disnea_mrc biomasa oxigeno medicamentos medico_remitente
+    reposo_inicial_min tiempo_sin_carga_min disnea_borg_inicial disnea_borg_final
+    fatiga_borg_inicial fatiga_borg_final cambio_watts_por_etapa""".split()
 )
 
 MEDICO_MANUAL_CONTROL_IDS = frozenset("latidos_recuperados_minuto vo2_minuto".split())

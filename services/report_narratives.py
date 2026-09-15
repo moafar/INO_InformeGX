@@ -83,6 +83,8 @@ def _antecedents(v: _Values) -> NarrativeSection:
 
     if v.has("medicamentos"):
         fragments.append(f"Medicamentos: {v.value('medicamentos')}")
+    if v.has("medico_remitente"):
+        fragments.append(f"Médico remitente: {v.value('medico_remitente')}")
 
     anthropometry: list[str] = []
     if v.has("weight"):

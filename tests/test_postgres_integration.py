@@ -27,7 +27,12 @@ from repositories.drafts import (
     take_for_signature,
 )
 from services.draft_workflow import open_persistent_draft
-from services.draft_workflow import report_view_for_draft, report_view_for_version, save_draft_values
+from services.draft_workflow import (
+    report_view_for_draft,
+    report_view_for_version,
+    save_draft_values,
+    take_draft_for_signature,
+)
 from services.passwords import hash_password
 from services.report_controls import AUXILIAR, COORDINADORA, MEDICO
 from services.study_report import INITIAL_CONCLUSIONES_DEFINITIVAS
@@ -173,86 +178,123 @@ class PostgresWorkflowTests(TestCase):
         draft = self._draft()
         profile = {"name": "Dra. Sintética", "profession_specialty": "Especialidad", "professional_registration": "RM-1", "institutional_line": ""}
         with self.app.app_context():
-            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
-            signed = sign_draft(draft_id=taken.id, user_id=2, username="med_a", signer_signature_profile=profile, expected_values=taken.values)
+            auxiliary_saved = save_draft_values(
+                draft=draft,
+                user_id=1,
+                role=AUXILIAR,
+                submitted_values={"medico_remitente": "Dr. Remitente auxiliar sintético"},
+            )
+            taken = take_for_signature(draft_id=auxiliary_saved.id, user_id=2, username="med_a")
+            medical_saved = save_draft_values(
+                draft=taken,
+                user_id=2,
+                role=MEDICO,
+                submitted_values={"medico_remitente": "Dra. Remitente firmada sintética"},
+            )
+            signed = sign_draft(draft_id=medical_saved.id, user_id=2, username="med_a", signer_signature_profile=profile, expected_values=medical_saved.values)
             self.assertIsNotNone(get_report_version(signed.id))
             v2 = create_next_version(source_version_id=signed.id, user_id=3, username="med_b")
         self.assertEqual(v2.next_version_number, 2)
         self.assertEqual(v2.state, EN_FIRMA)
         self.assertEqual(v2.medical_owner_user_id, 3)
         self.assertEqual(v2.values, signed.values)
+        self.assertEqual(
+            signed.values["medico_remitente"].current_value,
+            "Dra. Remitente firmada sintética",
+        )
+        self.assertEqual(
+            v2.values["medico_remitente"].current_value,
+            "Dra. Remitente firmada sintética",
+        )
         with psycopg.connect(TEST_DATABASE_URL) as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM ergo_app.report_pdf_events").fetchone()[0], 0)
 
-    def test_conclusions_template_is_only_used_for_a_new_v1(self) -> None:
+    def test_conclusions_template_is_initialized_only_on_first_v1_take(self) -> None:
         draft = self._draft()
         self.assertEqual(
             draft.values["conclusiones_definitivas"].current_value,
-            INITIAL_CONCLUSIONES_DEFINITIVAS,
+            "",
         )
 
         with self.app.app_context():
-            reopened, _ = open_persistent_draft(
-                patient_id_num="90000001",
-                visit_datetime=datetime(2026, 1, 2, 10, 30),
-                clinical_row=clinical_row(),
+            taken = take_draft_for_signature(
+                draft=draft,
+                user_id=2,
+                username="med_a",
+                role=MEDICO,
             )
-            self.assertEqual(reopened.id, draft.id)
             self.assertEqual(
-                reopened.values["conclusiones_definitivas"].current_value,
+                taken.values["conclusiones_definitivas"].current_value,
                 INITIAL_CONCLUSIONES_DEFINITIVAS,
             )
-
-            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
-            edited = save_draft_values(
-                draft=taken,
-                user_id=2,
-                role=MEDICO,
-                submitted_values={"conclusiones_definitivas": "Conclusión médica sintética"},
-            )
-            self.assertEqual(
-                get_draft(edited.id).values["conclusiones_definitivas"].current_value,
-                "Conclusión médica sintética",
-            )
-
             emptied = save_draft_values(
-                draft=edited,
+                draft=taken,
                 user_id=2,
                 role=MEDICO,
                 submitted_values={"conclusiones_definitivas": ""},
             )
-            reopened_empty, _ = open_persistent_draft(
-                patient_id_num="90000001",
-                visit_datetime=datetime(2026, 1, 2, 10, 30),
-                clinical_row=clinical_row(),
-            )
-            self.assertEqual(
-                reopened_empty.values["conclusiones_definitivas"].current_value,
-                "",
-            )
-
-            final = save_draft_values(
-                draft=emptied,
-                user_id=2,
-                role=MEDICO,
-                submitted_values={"conclusiones_definitivas": "Conclusión firmada sintética"},
-            )
-            signed = sign_draft(
-                draft_id=final.id,
+            released = release_from_signature(
+                draft_id=emptied.id,
                 user_id=2,
                 username="med_a",
+            )
+            retaken = take_draft_for_signature(
+                draft=released,
+                user_id=3,
+                username="med_b",
+                role=MEDICO,
+            )
+            self.assertEqual(
+                retaken.values["conclusiones_definitivas"].current_value,
+                "",
+            )
+            signed = sign_draft(
+                draft_id=retaken.id,
+                user_id=3,
+                username="med_b",
                 signer_signature_profile={"name": "Dra. Sintética"},
-                expected_values=final.values,
+                expected_values=retaken.values,
             )
             v2 = create_next_version(
                 source_version_id=signed.id,
-                user_id=3,
-                username="med_b",
+                user_id=2,
+                username="med_a",
             )
 
         self.assertEqual(
             v2.values["conclusiones_definitivas"].current_value,
-            "Conclusión firmada sintética",
+            "",
+        )
+
+        other_row = clinical_row()
+        other_row.update(
+            patient_id_num="90000002",
+            visit_datetime=datetime(2026, 1, 3, 11, 45),
+        )
+        with self.app.app_context():
+            preexisting, _ = open_persistent_draft(
+                patient_id_num="90000002",
+                visit_datetime=datetime(2026, 1, 3, 11, 45),
+                clinical_row=other_row,
+            )
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            connection.execute(
+                """UPDATE ergo_app.draft_values SET current_value=%s
+                     WHERE draft_id=%s AND field_key='conclusiones_definitivas'""",
+                ("Conclusión previa sintética", preexisting.id),
+            )
+        with self.app.app_context():
+            current = get_draft(preexisting.id)
+            assert current is not None
+            preserved = take_draft_for_signature(
+                draft=current,
+                user_id=2,
+                username="med_a",
+                role=MEDICO,
+            )
+        self.assertEqual(
+            preserved.values["conclusiones_definitivas"].current_value,
+            "Conclusión previa sintética",
         )
 
     def test_vdvt_metadata_survives_draft_signature_and_new_version(self) -> None:

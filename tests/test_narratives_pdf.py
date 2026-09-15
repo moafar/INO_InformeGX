@@ -6,9 +6,12 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 from uuid import uuid4
+
+from flask import render_template
 
 from app import create_app
 from repositories.drafts import PersistedReportVersion
@@ -35,6 +38,7 @@ def report_with_snapshot_values():
         },
         submitted_values={
             "motivo_remision": "Control sintético",
+            "medico_remitente": "Dra. Remitente sintética",
             "hb": "0",
             "umbral_anaerobio_alcanzado": "NO",
             "gx_at_ve_per_vco2": "99",
@@ -50,6 +54,7 @@ class NarrativeTests(TestCase):
 
         self.assertEqual(tuple(section.title for section in narratives), SECTION_TITLES)
         self.assertIn("Motivo de la remisión: Control sintético", narratives[0].fragments)
+        self.assertIn("Médico remitente: Dra. Remitente sintética", narratives[0].fragments)
         self.assertIn("Hb: 0 g/dL", narratives[0].fragments)
         self.assertIn("Peso: 0 kg", " ".join(narratives[0].fragments))
         ventilatory = " ".join(narratives[4].fragments)
@@ -96,12 +101,41 @@ class PdfRenderingTests(TestCase):
         rendered_html = html.call_args.kwargs["string"]
         self.assertEqual(pdf_bytes, b"%PDF-synthetic")
         self.assertIn("Conclusión firmada &lt;script&gt;alert(1)&lt;/script&gt;", rendered_html)
+        self.assertIn("Médico remitente: Dra. Remitente sintética", rendered_html)
         self.assertNotIn("Conclusión firmada <script>alert(1)</script>", rendered_html)
         self.assertIn("Dra. Firmante sintética", rendered_html)
         self.assertIn("Especialidad sintética", rendered_html)
         self.assertIn("Registro profesional: RM-900", rendered_html)
         self.assertNotIn("Guardar ahora", rendered_html)
         self.assertNotIn("GX · EDITADO", rendered_html)
+
+    def test_signed_view_and_pdf_omit_empty_referring_physician(self) -> None:
+        informed = report_with_snapshot_values()
+        empty = build_study_report_view({"patient_id_num": "90000001"})
+        version = SimpleNamespace(
+            id=uuid4(),
+            version_number=1,
+            signed_by_username="synthetic-doctor",
+        )
+        with self.app.test_request_context():
+            informed_signed_html = render_template(
+                "study_signed.html", version=version, draft=informed
+            )
+            empty_signed_html = render_template(
+                "study_signed.html", version=version, draft=empty
+            )
+        self.assertIn("Médico remitente:</strong> Dra. Remitente sintética", informed_signed_html)
+        self.assertNotIn("Médico remitente", empty_signed_html)
+
+        with self.app.app_context(), patch("weasyprint.HTML") as html, patch("weasyprint.CSS"):
+            html.return_value.write_pdf.return_value = b"%PDF-synthetic"
+            generate_report_pdf(
+                empty,
+                build_report_narratives(empty),
+                generated_at=datetime(2026, 8, 24, 15, 30, tzinfo=timezone.utc),
+                signature_profile=SignatureProfile(name="Dra. Firmante sintética"),
+            )
+        self.assertNotIn("Médico remitente", html.call_args.kwargs["string"])
 
     def test_pdf_renders_in_memory_when_letterhead_assets_are_missing(self) -> None:
         with TemporaryDirectory() as temporary_directory:

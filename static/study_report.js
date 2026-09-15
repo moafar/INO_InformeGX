@@ -59,6 +59,7 @@
       rows.push(`<div class="clinical-summary-row clinical-summary-row--inline">${parts.join("")}</div>`);
     }
     if (has("medicamentos")) rows.push(`<div class="clinical-summary-row"><strong>Medicamentos:</strong>${datum("medicamentos")}</div>`);
+    if (has("medico_remitente")) rows.push(`<div class="clinical-summary-row"><strong>Médico remitente:</strong>${datum("medico_remitente")}</div>`);
     if (any(["weight", "height", "bmi"])) {
       const parts = ["<strong>Medidas antropométricas:</strong>"];
       if (has("weight")) parts.push(`<span>Peso: ${datum("weight", " kg")}</span>`);
@@ -329,9 +330,17 @@
     saveNowButton && (saveNowButton.disabled = true);
     saveInFlight = (async () => {
       try {
-      const formData = new FormData(form);
-      form.querySelectorAll('input[type="checkbox"][data-report-control]').forEach((element) => {
-        if (!element.disabled && !formData.has(element.name)) formData.append(element.name, "false");
+      const formData = new FormData();
+      formData.append("csrf_token", csrfToken());
+      formData.append("draft_id", document.getElementById("draft-id").value);
+      formData.append("draft_revision", document.getElementById("draft-revision")?.value || "");
+      controls.forEach((element) => {
+        const field = element.closest("[data-editable]");
+        if (element.disabled || field?.dataset.editable !== "true") return;
+        formData.append(
+          element.name,
+          element.type === "checkbox" ? (element.checked ? "true" : "false") : element.value,
+        );
       });
       const response = await fetch(form.dataset.saveUrl, {
         method: "POST", body: formData, credentials: "same-origin", headers: { Accept: "application/json" },

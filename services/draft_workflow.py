@@ -74,7 +74,7 @@ def open_persistent_draft(*, patient_id_num: str, visit_datetime: datetime, clin
             key,
             field.variable_type,
             str(field.original_value),
-            INITIAL_CONCLUSIONES_DEFINITIVAS if key == "conclusiones_definitivas" else str(field.value),
+            str(field.value),
             False,
         )
         for key, field in initial_view.fields.items()
@@ -159,7 +159,12 @@ def save_draft_values(*, draft: PersistedDraft, user_id: int, role: str, submitt
 def take_draft_for_signature(*, draft: PersistedDraft, user_id: int, username: str, role: str) -> PersistedDraft:
     if role != MEDICO:
         raise DraftPermissionError("Solo un médico puede tomar el informe para firma.")
-    return take_for_signature(draft_id=draft.id, user_id=user_id, username=username)
+    return take_for_signature(
+        draft_id=draft.id,
+        user_id=user_id,
+        username=username,
+        initial_conclusions=INITIAL_CONCLUSIONES_DEFINITIVAS,
+    )
 
 
 def release_draft(*, draft: PersistedDraft, user_id: int, username: str, role: str) -> PersistedDraft:

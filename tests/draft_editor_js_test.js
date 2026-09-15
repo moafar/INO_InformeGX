@@ -7,7 +7,7 @@ const vm = require("vm");
 
 function fakeControl(id, value, type = "text", checked = false, origin = "MANUAL") {
   const listeners = {};
-  const field = { dataset: { origin, edited: "false" } };
+  const field = { dataset: { origin, editable: "true", edited: "false" } };
   return {
     id,
     name: id,
@@ -34,6 +34,7 @@ const controls = [
   fakeControl("patient_first_name", "Ana", "text", false, "GX"),
   fakeControl("patient_middle_name", "", "text", false, "GX"),
   fakeControl("patient_last_name", "Prueba", "text", false, "GX"),
+  fakeControl("medico_remitente", "Dra. Remitente sintética"),
   fakeControl("conclusiones_definitivas", "<img src=x onerror=alert(1)>", "textarea"),
   fakeControl("gx_vo2_max_time_min", ""),
   fakeControl("reposo_inicial_min", "3"),
@@ -167,14 +168,16 @@ const fakeFetch = (url, options) => {
 };
 class FakeFormData {
   constructor(receivedForm) {
-    assert.strictEqual(receivedForm, form);
     this.values = new Map();
+    if (receivedForm === undefined) return;
+    assert.strictEqual(receivedForm, form);
     controls.forEach((control) => {
       if (control.disabled || (control.type === "checkbox" && !control.checked)) return;
       this.append(control.name, control.type === "checkbox" ? "true" : control.value);
     });
   }
   has(name) { return this.values.has(name); }
+  get(name) { return this.values.get(name); }
   append(name, value) { this.values.set(name, value); }
 }
 const fakeUrl = {
@@ -204,6 +207,7 @@ assert.ok(narrativeSlots[4][0].innerHTML.includes("La ventilación minuto (VE) f
 assert.ok(narrativeSlots[4][0].innerHTML.includes("VD/VT) medido por gases arteriales en reposo fue de <em>25</em>"));
 assert.ok(!narrativeSlots[4][0].innerHTML.includes("0.58"));
 assert.ok(narrativeSlots[1][0].innerHTML.includes("Inicia con <em>3</em> minutos de reposo, luego <em>3</em> minutos de ejercicio sin carga y continúa con pedaleo con carga"));
+assert.ok(narrativeSlots[0][0].innerHTML.includes("Médico remitente:</strong><em>Dra. Remitente sintética</em>"));
 assert.ok(!narrativeSlots[1][0].innerHTML.includes("La prueba tuvo una duración"));
 assert.ok(narrativeSlots[3][0].innerHTML.includes("El oxígeno latido <em>11.2</em> (ml O₂/lat)"));
 assert.strictEqual(byId["report-patient-name"].textContent, "Ana Prueba");
@@ -261,9 +265,11 @@ assert.strictEqual(detailButton.textContent, "Ocultar detalle");
 assert.strictEqual(identity.hidden, false);
 assert.ok(pageClasses.has("detail-visible"));
 
-async function testDisabledCheckboxIsNotInjectedIntoSavePayload() {
-  byId["medicion_gases"].disabled = true;
-  byId["medicion_gases"].checked = true;
+async function testSavePayloadUsesOnlyEditableControls() {
+  controls.forEach((control) => { control.field.dataset.editable = "false"; });
+  byId["medico_remitente"].field.dataset.editable = "true";
+  byId["medicion_gases"].checked = false;
+  byId["report-csrf-token"] = { value: "synthetic-csrf" };
   byId["draft-id"] = { value: "synthetic-draft" };
   byId["draft-revision"] = { value: "1" };
   form.dataset.saveUrl = "/studies/drafts/save";
@@ -271,9 +277,24 @@ async function testDisabledCheckboxIsNotInjectedIntoSavePayload() {
   saveNowButton.listeners.click();
   assert.strictEqual(fetchCalls, 1);
   assert.strictEqual(lastRequest.url, "/studies/drafts/save");
+  assert.strictEqual(lastRequest.options.body.get("csrf_token"), "synthetic-csrf");
+  assert.strictEqual(lastRequest.options.body.get("draft_id"), "synthetic-draft");
+  assert.strictEqual(lastRequest.options.body.get("draft_revision"), "1");
+  assert.strictEqual(lastRequest.options.body.get("medico_remitente"), "Dra. Remitente sintética");
+  assert.strictEqual(lastRequest.options.body.has("conclusiones_definitivas"), false);
   assert.strictEqual(lastRequest.options.body.has("medicion_gases"), false);
 
   resolveFetch({ ok: true, json: async () => ({ revision: 2 }) });
+  await new Promise((resolve) => setImmediate(resolve));
+  fetchCalls = 0;
+
+  controls.forEach((control) => { control.field.dataset.editable = "true"; });
+  saveNowButton.listeners.click();
+  assert.strictEqual(fetchCalls, 1);
+  assert.strictEqual(lastRequest.options.body.has("conclusiones_definitivas"), true);
+  assert.strictEqual(lastRequest.options.body.get("medicion_gases"), "false");
+
+  resolveFetch({ ok: true, json: async () => ({ revision: 3 }) });
   await new Promise((resolve) => setImmediate(resolve));
   fetchCalls = 0;
 }
@@ -306,7 +327,7 @@ async function testSigningConfirmation() {
   assert.strictEqual(pdfError.hidden, true);
 }
 
-testDisabledCheckboxIsNotInjectedIntoSavePayload()
+testSavePayloadUsesOnlyEditableControls()
   .then(testSigningConfirmation)
   .then(() => console.log("study_report.js: OK"))
   .catch((error) => {

@@ -318,7 +318,14 @@ def save_values(
             return saved
 
 
-def take_for_signature(*, draft_id: UUID, user_id: int, username: str, taken_at: datetime | None = None) -> PersistedDraft:
+def take_for_signature(
+    *,
+    draft_id: UUID,
+    user_id: int,
+    username: str,
+    taken_at: datetime | None = None,
+    initial_conclusions: str | None = None,
+) -> PersistedDraft:
     instant = taken_at or _now()
     connection = get_app_db()
     with connection.transaction():
@@ -329,6 +336,20 @@ def take_for_signature(*, draft_id: UUID, user_id: int, username: str, taken_at:
             draft = _expire_locked(cursor, draft, instant)
             if draft.state not in {PRELIMINAR, PRELIMINAR_BLOQUEADO}:
                 raise DraftStateError("El informe no está disponible para toma médica.")
+            conclusions = draft.values.get("conclusiones_definitivas")
+            if (
+                draft.next_version_number == 1
+                and draft.state == PRELIMINAR
+                and initial_conclusions is not None
+                and conclusions is not None
+                and not conclusions.current_value.strip()
+            ):
+                cursor.execute(
+                    """UPDATE ergo_app.draft_values
+                          SET current_value=%s, updated_at=NOW()
+                        WHERE draft_id=%s AND field_key='conclusiones_definitivas'""",
+                    (initial_conclusions, draft_id),
+                )
             cursor.execute(
                 """UPDATE ergo_app.report_drafts SET state=%s, medical_owner_user_id=%s,
                    medical_taken_at=%s, revision=revision+1, updated_at=NOW() WHERE id=%s""",

@@ -1,8 +1,8 @@
 # Modelo vigente de controles
 
 La clasificación es definitiva y está implementada en
-`services/report_controls.py`. Los 93 controles se reparten en 46 DIRECTO, 8
-CALCULADO, 16 MANUAL y 23 INTERPRETACIÓN.
+`services/report_controls.py`. Los 94 controles se reparten en 46 DIRECTO, 8
+CALCULADO, 17 MANUAL y 23 INTERPRETACIÓN.
 
 ## DIRECTO
 
@@ -35,7 +35,7 @@ CALCULADO, 16 MANUAL y 23 INTERPRETACIÓN.
 ### AUXILIAR en PRELIMINAR
 
 `motivo_remision`, `hb`, `hc`, `disnea_mrc`, `biomasa`, `oxigeno`,
-`medicamentos`, `reposo_inicial_min`, `tiempo_sin_carga_min`,
+`medicamentos`, `medico_remitente`, `reposo_inicial_min`, `tiempo_sin_carga_min`,
 `disnea_borg_inicial`, `disnea_borg_final`, `fatiga_borg_inicial`,
 `fatiga_borg_final`, `cambio_watts_por_etapa`.
 
@@ -60,8 +60,8 @@ CALCULADO, 16 MANUAL y 23 INTERPRETACIÓN.
 
 `EDITADO` no es tipo. Solo DIRECTO/CALCULADO editados conservan original y
 vigente en borrador y snapshot firmado. La editabilidad depende adicionalmente
-del workflow: AUXILIAR solo edita sus 14 MANUAL en PRELIMINAR; MÉDICO solo los
-93 controles de una versión EN_FIRMA de su propiedad. COORDINADORA no edita.
+del workflow: AUXILIAR solo edita sus 15 MANUAL en PRELIMINAR; MÉDICO solo los
+94 controles de una versión EN_FIRMA de su propiedad. COORDINADORA no edita.
 
 ## Procedencia VD/VT persistida
 

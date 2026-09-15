@@ -44,7 +44,7 @@
       <div>
         <h2>Borrador del informe · {{ workflow_state|replace('_', ' ') }}</h2>
         <div class="workspace-meta">
-          <p>Formulario clínico compacto · <span id="filled-count">0</span> de <span id="total-count">93</span> campos diligenciados</p>
+          <p>Formulario clínico compacto · <span id="filled-count">0</span> de <span id="total-count">94</span> campos diligenciados</p>
           <span class="manual-key"><i aria-hidden="true"></i>Requiere intervención manual</span>
           {% if preview_mode %}<span class="preview-key">Vista previa con datos sintéticos</span>{% endif %}
         </div>
@@ -117,6 +117,9 @@
             </div></fieldset>
             <fieldset class="group group--grow"><legend>Medicamentos</legend><div class="fields">
               {{ field('medicamentos', 'Tratamiento actual', area=true) }}
+            </div></fieldset>
+            <fieldset class="group group--grow"><legend>Remitente</legend><div class="fields">
+              {{ field('medico_remitente', 'Médico remitente') }}
             </div></fieldset>
           </div>
           <div class="section-narrative-slot" data-section-narrative="0" aria-live="polite"></div>

@@ -3,7 +3,7 @@
 > Este paquete corresponde a un demo anterior y no participa en el runtime de
 > INO_InformeGX. Sus plantillas, rutas de ejemplo y conteos de controles no
 > definen el workflow vigente. La referencia actual es
-> `templates/study_draft.html`, con 93 controles definidos en
+> `templates/study_draft.html`, con 94 controles definidos en
 > `services/study_report.py`, persistencia propia y permisos de backend.
 
 # Plantilla Jinja — informe de ergoespirometría

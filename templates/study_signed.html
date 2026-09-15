@@ -6,6 +6,8 @@
   <section class="page-heading">
     <h2>Versión {{ version.version_number }} · FIRMADO</h2>
     <p class="muted">Firmada por {{ version.signed_by_username }}. Esta versión es inmutable.</p>
+    {% set medico_remitente = draft.field('medico_remitente').value %}
+    {% if medico_remitente and medico_remitente|string|trim %}<p><strong>Médico remitente:</strong> {{ medico_remitente|string|trim }}</p>{% endif %}
   </section>
   <section class="patient-bar">
     <div class="patient-summary">

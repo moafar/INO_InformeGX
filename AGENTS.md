@@ -28,12 +28,12 @@ staging.gx_analytics`. Es estrictamente de solo lectura.
 
 ## Modelo de controles
 
-La fuente funcional única de los 93 controles es `services/study_report.py`; la
+La fuente funcional única de los 94 controles es `services/study_report.py`; la
 clasificación aprobada está en `services/report_controls.py`:
 
 - `DIRECTO`: 46 controles.
 - `CALCULADO`: 8 controles.
-- `MANUAL`: 16 controles.
+- `MANUAL`: 17 controles.
 - `INTERPRETACIÓN`: 23 controles.
 
 `EDITADO` es una condición, no un tipo, y solo aplica a DIRECTO/CALCULADO.
@@ -47,7 +47,7 @@ runtime sobre él.
 
 - Estados persistentes: `PRELIMINAR`, `EN_FIRMA`, `PRELIMINAR_BLOQUEADO`,
   `FIRMADO`.
-- `AUXILIAR`: solo puede editar sus 14 MANUAL asignados en `PRELIMINAR`.
+- `AUXILIAR`: solo puede editar sus 15 MANUAL asignados en `PRELIMINAR`.
 - `MEDICO`: toma `PRELIMINAR` o `PRELIMINAR_BLOQUEADO`; solo el propietario de
   `EN_FIRMA` puede editar, liberar o firmar. Puede crear v2+ desde la última
   versión firmada.

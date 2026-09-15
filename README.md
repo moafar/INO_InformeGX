@@ -70,5 +70,5 @@ python -m unittest discover -s tests
 node tests/draft_editor_js_test.js
 ```
 
-La clasificación exacta de los 93 controles, roles y permisos se documenta en
+La clasificación exacta de los 94 controles, roles y permisos se documenta en
 `docs/modelo_controles.md`.
