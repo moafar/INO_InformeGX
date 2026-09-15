@@ -149,6 +149,18 @@ MANUAL_CONTROL_IDS = (
 
 MAX_REPORT_FIELD_LENGTH = 20_000
 
+INITIAL_CONCLUSIONES_DEFINITIVAS = "\n\n".join(
+    (
+        "1. Capacidad de esfuerzo cardiopulmonar según consumo de oxígeno pico:",
+        "2. Respuesta cronotrópica y carga máxima alcanzada:",
+        "3. Clase funcional, VO₂ pico y relación VO₂/trabajo:",
+        "4. Limitación ventilatoria al ejercicio:",
+        "5. Respuesta cardiovascular, oxígeno latido y umbral anaerobio:",
+        "6. Evaluación de posible limitación vascular pulmonar:",
+        "7. Síntesis global e interpretación final de la prueba:",
+    )
+)
+
 
 class ReportFormValidationError(ValueError):
     """Raised when a report POST cannot represent one unambiguous form state."""

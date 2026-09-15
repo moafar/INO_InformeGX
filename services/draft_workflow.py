@@ -27,6 +27,7 @@ from repositories.drafts import (
 from services.report_controls import AUXILIAR, MEDICO, CALCULADO, DIRECTO, CONTROL_TYPES, controls_editable_by
 from services.signature_profile import signature_profile_for_user
 from services.study_report import (
+    INITIAL_CONCLUSIONES_DEFINITIVAS,
     MAX_REPORT_FIELD_LENGTH,
     REPORT_CONTROL_IDS,
     StudyReportView,
@@ -69,7 +70,13 @@ def open_persistent_draft(*, patient_id_num: str, visit_datetime: datetime, clin
     """Create v1 only when absent; opening never takes medical ownership."""
     initial_view = build_study_report_view(clinical_row)
     initial_values = {
-        key: DraftValue(key, field.variable_type, str(field.original_value), str(field.value), False)
+        key: DraftValue(
+            key,
+            field.variable_type,
+            str(field.original_value),
+            INITIAL_CONCLUSIONES_DEFINITIVAS if key == "conclusiones_definitivas" else str(field.value),
+            False,
+        )
         for key, field in initial_view.fields.items()
     }
     draft = get_or_create_draft(

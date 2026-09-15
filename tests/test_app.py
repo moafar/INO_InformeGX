@@ -11,9 +11,9 @@ from uuid import uuid4
 
 from repositories.drafts import EN_FIRMA, PRELIMINAR, PRELIMINAR_BLOQUEADO, DraftValue, PersistedDraft
 from repositories.users import AuthUser
-from services.draft_workflow import DraftPermissionError, editable_control_ids, save_draft_values
+from services.draft_workflow import DraftPermissionError, editable_control_ids, open_persistent_draft, save_draft_values
 from services.report_controls import AUXILIAR, CALCULADO, CONTROL_TYPES, COORDINADORA, DIRECTO, INTERPRETACION, MANUAL, MEDICO
-from services.study_report import REPORT_CONTROL_IDS, build_derived_values
+from services.study_report import INITIAL_CONCLUSIONES_DEFINITIVAS, REPORT_CONTROL_IDS, build_derived_values
 
 
 def draft(*, state: str = PRELIMINAR, owner: int | None = None, version: int = 1) -> PersistedDraft:
@@ -46,6 +46,8 @@ class PermissionTests(TestCase):
         self.assertEqual(editable_control_ids(MEDICO, in_signature, user_id=7), frozenset(REPORT_CONTROL_IDS))
         self.assertEqual(editable_control_ids(MEDICO, in_signature, user_id=8), frozenset())
         self.assertEqual(editable_control_ids(COORDINADORA, preliminary, user_id=9), frozenset())
+        self.assertNotIn("conclusiones_definitivas", editable_control_ids(AUXILIAR, preliminary, user_id=1))
+        self.assertIn("conclusiones_definitivas", editable_control_ids(MEDICO, in_signature, user_id=7))
 
     def test_auxiliar_cannot_save_after_medical_phase(self) -> None:
         with self.assertRaises(DraftPermissionError):
@@ -59,6 +61,35 @@ class PermissionTests(TestCase):
         self.assertEqual(save.call_args.kwargs["expected_state"], EN_FIRMA)
         self.assertEqual(save.call_args.kwargs["expected_owner_user_id"], 7)
         self.assertEqual(save.call_args.kwargs["updates"]["diagnosis"], ("corrección", True))
+
+
+class InitialValuesTests(TestCase):
+    def test_new_v1_persists_the_exact_conclusions_template(self) -> None:
+        persisted = draft()
+        with patch("services.draft_workflow.get_or_create_draft", return_value=persisted) as create:
+            open_persistent_draft(
+                patient_id_num="90000001",
+                visit_datetime=datetime(2026, 1, 2, 10, 30),
+                clinical_row={
+                    "patient_id_num": "90000001",
+                    "visit_datetime": datetime(2026, 1, 2, 10, 30),
+                },
+            )
+
+        initial = create.call_args.kwargs["initial_values"]["conclusiones_definitivas"]
+        expected = (
+            "1. Capacidad de esfuerzo cardiopulmonar según consumo de oxígeno pico:\n\n"
+            "2. Respuesta cronotrópica y carga máxima alcanzada:\n\n"
+            "3. Clase funcional, VO₂ pico y relación VO₂/trabajo:\n\n"
+            "4. Limitación ventilatoria al ejercicio:\n\n"
+            "5. Respuesta cardiovascular, oxígeno latido y umbral anaerobio:\n\n"
+            "6. Evaluación de posible limitación vascular pulmonar:\n\n"
+            "7. Síntesis global e interpretación final de la prueba:"
+        )
+        self.assertEqual(INITIAL_CONCLUSIONES_DEFINITIVAS, expected)
+        self.assertEqual(initial.original_value, "")
+        self.assertEqual(initial.current_value, expected)
+        self.assertEqual(initial.variable_type, INTERPRETACION)
 
 
 class SchemaAndDocumentationTests(TestCase):

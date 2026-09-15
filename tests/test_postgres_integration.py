@@ -30,6 +30,7 @@ from services.draft_workflow import open_persistent_draft
 from services.draft_workflow import report_view_for_draft, report_view_for_version, save_draft_values
 from services.passwords import hash_password
 from services.report_controls import AUXILIAR, COORDINADORA, MEDICO
+from services.study_report import INITIAL_CONCLUSIONES_DEFINITIVAS
 
 
 TEST_DATABASE_URL = os.getenv("INFORMEGX_TEST_DATABASE_URL")
@@ -182,6 +183,77 @@ class PostgresWorkflowTests(TestCase):
         self.assertEqual(v2.values, signed.values)
         with psycopg.connect(TEST_DATABASE_URL) as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM ergo_app.report_pdf_events").fetchone()[0], 0)
+
+    def test_conclusions_template_is_only_used_for_a_new_v1(self) -> None:
+        draft = self._draft()
+        self.assertEqual(
+            draft.values["conclusiones_definitivas"].current_value,
+            INITIAL_CONCLUSIONES_DEFINITIVAS,
+        )
+
+        with self.app.app_context():
+            reopened, _ = open_persistent_draft(
+                patient_id_num="90000001",
+                visit_datetime=datetime(2026, 1, 2, 10, 30),
+                clinical_row=clinical_row(),
+            )
+            self.assertEqual(reopened.id, draft.id)
+            self.assertEqual(
+                reopened.values["conclusiones_definitivas"].current_value,
+                INITIAL_CONCLUSIONES_DEFINITIVAS,
+            )
+
+            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
+            edited = save_draft_values(
+                draft=taken,
+                user_id=2,
+                role=MEDICO,
+                submitted_values={"conclusiones_definitivas": "Conclusión médica sintética"},
+            )
+            self.assertEqual(
+                get_draft(edited.id).values["conclusiones_definitivas"].current_value,
+                "Conclusión médica sintética",
+            )
+
+            emptied = save_draft_values(
+                draft=edited,
+                user_id=2,
+                role=MEDICO,
+                submitted_values={"conclusiones_definitivas": ""},
+            )
+            reopened_empty, _ = open_persistent_draft(
+                patient_id_num="90000001",
+                visit_datetime=datetime(2026, 1, 2, 10, 30),
+                clinical_row=clinical_row(),
+            )
+            self.assertEqual(
+                reopened_empty.values["conclusiones_definitivas"].current_value,
+                "",
+            )
+
+            final = save_draft_values(
+                draft=emptied,
+                user_id=2,
+                role=MEDICO,
+                submitted_values={"conclusiones_definitivas": "Conclusión firmada sintética"},
+            )
+            signed = sign_draft(
+                draft_id=final.id,
+                user_id=2,
+                username="med_a",
+                signer_signature_profile={"name": "Dra. Sintética"},
+                expected_values=final.values,
+            )
+            v2 = create_next_version(
+                source_version_id=signed.id,
+                user_id=3,
+                username="med_b",
+            )
+
+        self.assertEqual(
+            v2.values["conclusiones_definitivas"].current_value,
+            "Conclusión firmada sintética",
+        )
 
     def test_vdvt_metadata_survives_draft_signature_and_new_version(self) -> None:
         draft = self._draft()
