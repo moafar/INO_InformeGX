@@ -17,6 +17,7 @@ from config import (
 from db import init_app as init_db
 from repositories.users import get_user_by_id
 from services.csrf import generate_csrf_token
+from services.report_controls import role_display_name
 from services.signature_profile import store_signature_profile_in_session
 from routes import register_routes
 
@@ -74,6 +75,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     login_manager.init_app(app)
     app.jinja_env.globals["csrf_token"] = generate_csrf_token
+    app.jinja_env.globals["role_display_name"] = role_display_name
     init_db(app)
     register_routes(app)
 

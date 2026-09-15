@@ -11,6 +11,17 @@ AUXILIAR = "AUXILIAR"
 MEDICO = "MEDICO"
 COORDINADORA = "COORDINADORA"
 
+ROLE_DISPLAY_NAMES = {
+    AUXILIAR: "Fisioterapeuta",
+    MEDICO: "Médico",
+    COORDINADORA: "Líder",
+}
+
+
+def role_display_name(role: str) -> str:
+    """Return the user-facing label without changing the persisted role code."""
+    return ROLE_DISPLAY_NAMES.get(role, role)
+
 DIRECT_CONTROL_IDS = frozenset(
     """patient_first_name patient_middle_name patient_last_name age sex visit_date
     patient_id_num diagnosis weight height bmi tbco_prod pk_yrs gx_vo2_max_time_min

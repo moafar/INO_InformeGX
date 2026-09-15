@@ -318,6 +318,40 @@ class AuthRouteTests(TestCase):
             self.assertNotIn("_user_id", session)
             self.assertNotIn(SIGNATURE_PROFILE_SESSION_KEY, session)
 
+    def test_authenticated_header_uses_visible_role_labels(self) -> None:
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+
+        for role, full_name, label in (
+            ("AUXILIAR", "Fisioterapeuta sintética", "Fisioterapeuta"),
+            ("MEDICO", "Médica sintética", "Médico"),
+            ("COORDINADORA", "Líder sintética", "Líder"),
+        ):
+            with self.subTest(role=role):
+                self.user.role = role
+                self.user.full_name = full_name
+                html = self.client.get("/").get_data(as_text=True)
+                self.assertIn(f"{full_name} · {label}", html)
+                self.assertNotIn("Auxiliar", html)
+                self.assertNotIn("Coordinadora", html)
+
+    def test_pdf_authorization_message_uses_leader_label(self) -> None:
+        self.user.role = "AUXILIAR"
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+            session["_csrf_token"] = "synthetic-csrf"
+
+        response = self.client.post(
+            "/studies/versions/report.pdf",
+            data={"csrf_token": "synthetic-csrf", "version_id": str(uuid4())},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("rol Líder", response.get_data(as_text=True))
+        self.assertNotIn("coordinadora", response.get_data(as_text=True).casefold())
+
     def test_create_version_redirects_html_forms_and_keeps_json_for_api_clients(self) -> None:
         source_version_id = uuid4()
         new_draft_id = uuid4()

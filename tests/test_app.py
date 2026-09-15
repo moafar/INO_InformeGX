@@ -18,7 +18,7 @@ from services.draft_workflow import (
     save_draft_values,
     take_draft_for_signature,
 )
-from services.report_controls import AUXILIAR, CALCULADO, CONTROL_TYPES, COORDINADORA, DIRECTO, INTERPRETACION, MANUAL, MEDICO
+from services.report_controls import AUXILIAR, CALCULADO, CONTROL_TYPES, COORDINADORA, DIRECTO, INTERPRETACION, MANUAL, MEDICO, role_display_name
 from services.study_report import INITIAL_CONCLUSIONES_DEFINITIVAS, REPORT_CONTROL_IDS, build_derived_values
 
 
@@ -35,6 +35,12 @@ class ClassificationTests(TestCase):
         self.assertEqual(set(CONTROL_TYPES), set(REPORT_CONTROL_IDS))
         self.assertEqual(Counter(CONTROL_TYPES.values()), {DIRECTO: 46, CALCULADO: 8, MANUAL: 17, INTERPRETACION: 23})
         self.assertEqual(CONTROL_TYPES["medico_remitente"], MANUAL)
+
+    def test_internal_role_codes_have_distinct_user_facing_labels(self) -> None:
+        self.assertEqual((AUXILIAR, MEDICO, COORDINADORA), ("AUXILIAR", "MEDICO", "COORDINADORA"))
+        self.assertEqual(role_display_name(AUXILIAR), "Fisioterapeuta")
+        self.assertEqual(role_display_name(MEDICO), "Médico")
+        self.assertEqual(role_display_name(COORDINADORA), "Líder")
 
     def test_existing_calculations_are_unchanged(self) -> None:
         values = build_derived_values({"gx_vo2_max_hr_bpm": "160", "gx_predicted_hr_bpm": "170", "gx_vo2_max_vo2_ml_per_min": "1800", "gx_predicted_vo2_ml_per_min": "2000", "gx_vo2_max_work_watts": "150", "gx_predicted_work_watts": "170", "gx_vo2_max_vo2_per_hr_ml_per_beat": "11.2", "gx_predicted_vo2_per_hr_ml_per_beat": "9.8", "gx_at_vo2_ml_per_min": "720", "pf_pre_mvv_l_per_min": "70", "gx_vo2_max_ve_btps_l_per_min": "55", "gx_rest_ph": "7.4", "gx_vo2_max_ph": "7.3"})
@@ -88,6 +94,15 @@ class PermissionTests(TestCase):
                 user_id=1,
                 role=AUXILIAR,
                 submitted_values={"conclusiones_definitivas": "Cambio forzado sintético"},
+            )
+
+    def test_medical_authorization_message_uses_visible_role_name(self) -> None:
+        with self.assertRaisesRegex(DraftPermissionError, "rol Médico"):
+            take_draft_for_signature(
+                draft=draft(),
+                user_id=1,
+                username="fisioterapeuta-sintetico",
+                role=AUXILIAR,
             )
 
     def test_owner_save_uses_optimistic_workflow_revision(self) -> None:

@@ -38,7 +38,7 @@ from services.draft_workflow import (
 )
 from services.gx_data_source import AmbiguousGXStudyError, gx_data_source
 from services.pdf_report import generate_report_pdf
-from services.report_controls import COORDINADORA, MEDICO
+from services.report_controls import COORDINADORA, MEDICO, role_display_name
 from services.report_narratives import build_report_narratives
 from services.signature_profile import SignatureProfile
 from services.study_report import ReportFormValidationError, build_study_report_view
@@ -237,7 +237,7 @@ def report_pdf():
     if not validate_csrf_token(request.form.get("csrf_token")):
         return "Formulario no válido.", 400
     if current_user.role != COORDINADORA:
-        return "Solo una coordinadora puede generar el PDF.", 403
+        return f"Solo el rol {role_display_name(COORDINADORA)} puede generar el PDF.", 403
     try:
         version_id = UUID(request.form.get("version_id", ""))
     except (TypeError, ValueError):

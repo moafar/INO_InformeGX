@@ -24,7 +24,7 @@ from repositories.drafts import (
     sign_draft,
     take_for_signature,
 )
-from services.report_controls import AUXILIAR, MEDICO, CALCULADO, DIRECTO, CONTROL_TYPES, controls_editable_by
+from services.report_controls import AUXILIAR, MEDICO, CALCULADO, DIRECTO, CONTROL_TYPES, controls_editable_by, role_display_name
 from services.signature_profile import signature_profile_for_user
 from services.study_report import (
     INITIAL_CONCLUSIONES_DEFINITIVAS,
@@ -158,7 +158,7 @@ def save_draft_values(*, draft: PersistedDraft, user_id: int, role: str, submitt
 
 def take_draft_for_signature(*, draft: PersistedDraft, user_id: int, username: str, role: str) -> PersistedDraft:
     if role != MEDICO:
-        raise DraftPermissionError("Solo un médico puede tomar el informe para firma.")
+        raise DraftPermissionError(f"Solo el rol {role_display_name(MEDICO)} puede tomar el informe para firma.")
     return take_for_signature(
         draft_id=draft.id,
         user_id=user_id,
@@ -169,13 +169,13 @@ def take_draft_for_signature(*, draft: PersistedDraft, user_id: int, username: s
 
 def release_draft(*, draft: PersistedDraft, user_id: int, username: str, role: str) -> PersistedDraft:
     if role != MEDICO:
-        raise DraftPermissionError("Solo un médico puede liberar el informe.")
+        raise DraftPermissionError(f"Solo el rol {role_display_name(MEDICO)} puede liberar el informe.")
     return release_from_signature(draft_id=draft.id, user_id=user_id, username=username)
 
 
 def sign_report_draft(*, draft: PersistedDraft, user, expected_values: dict[str, DraftValue] | None = None) -> PersistedReportVersion:
     if user.role != MEDICO:
-        raise DraftPermissionError("Solo un médico puede firmar el informe.")
+        raise DraftPermissionError(f"Solo el rol {role_display_name(MEDICO)} puede firmar el informe.")
     return sign_draft(
         draft_id=draft.id, user_id=int(user.get_id()), username=user.username,
         signer_signature_profile=asdict(signature_profile_for_user(user)), expected_values=expected_values,
@@ -184,7 +184,7 @@ def sign_report_draft(*, draft: PersistedDraft, user, expected_values: dict[str,
 
 def create_new_report_version(*, source_version_id: UUID, user_id: int, username: str, role: str) -> PersistedDraft:
     if role != MEDICO:
-        raise DraftPermissionError("Solo un médico puede crear una nueva versión.")
+        raise DraftPermissionError(f"Solo el rol {role_display_name(MEDICO)} puede crear una nueva versión.")
     return create_next_version(source_version_id=source_version_id, user_id=user_id, username=username)
 
 

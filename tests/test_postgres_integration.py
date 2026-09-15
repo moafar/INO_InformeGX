@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
+from pathlib import Path
 import subprocess
 import sys
 from unittest import TestCase, skipUnless
@@ -147,6 +148,50 @@ class PostgresWorkflowTests(TestCase):
     def _draft(self):
         with self.app.app_context():
             return open_persistent_draft(patient_id_num="90000001", visit_datetime=datetime(2026, 1, 2, 10, 30), clinical_row=clinical_row())[0]
+
+    def test_test_user_rename_migration_preserves_identity_role_hash_and_history(self) -> None:
+        migration_sql = Path("migrations/007_rename_test_users.sql").read_text(encoding="utf-8")
+        self.assertNotIn("report_workflow_audits", migration_sql)
+        self.assertNotIn("report_versions", migration_sql)
+        self.assertNotIn("report_pdf_events", migration_sql)
+
+        source_accounts = (
+            ("auxiliar_test", "Auxiliar Test", "hash-auxiliar-sintetico", AUXILIAR),
+            ("medico_test", "Medico Test", "hash-medico-sintetico", MEDICO),
+            ("coordinadora_test", "Coordinadora Test", "hash-coordinadora-sintetico", COORDINADORA),
+        )
+        expected_names = (
+            ("fisioterapeuta_test", "Fisioterapeuta Test"),
+            ("medico_test", "Médico Test"),
+            ("lider_test", "Líder Test"),
+        )
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            before = [
+                connection.execute(
+                    """INSERT INTO ergo_app.users (username, full_name, password_hash, role)
+                         VALUES (%s, %s, %s, %s)
+                      RETURNING id, password_hash, role""",
+                    account,
+                ).fetchone()
+                for account in source_accounts
+            ]
+            connection.execute(migration_sql)
+            after = [
+                connection.execute(
+                    """SELECT id, username, full_name, password_hash, role
+                         FROM ergo_app.users WHERE id=%s""",
+                    (account[0],),
+                ).fetchone()
+                for account in before
+            ]
+
+        self.assertEqual(
+            after,
+            [
+                (before_row[0], username, full_name, before_row[1], before_row[2])
+                for before_row, (username, full_name) in zip(before, expected_names, strict=True)
+            ],
+        )
 
     def test_state_transitions_and_release_are_durable(self) -> None:
         draft = self._draft()
