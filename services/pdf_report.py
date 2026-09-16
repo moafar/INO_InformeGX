@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime
 from pathlib import Path
 import re
@@ -61,6 +62,8 @@ def generate_report_pdf(
     *,
     generated_at: datetime,
     signature_profile: SignatureProfile,
+    signature_image: bytes | None = None,
+    signature_image_mime_type: str | None = None,
 ) -> bytes:
     """Render the final report to bytes without writing a repository file."""
     # Import lazily so non-PDF commands can still give a focused dependency
@@ -68,6 +71,10 @@ def generate_report_pdf(
     from weasyprint import CSS, HTML
 
     root_path = Path(current_app.root_path)
+    signature_image_data_uri = None
+    if signature_image is not None and signature_image_mime_type == "image/png":
+        encoded_signature = base64.b64encode(signature_image).decode("ascii")
+        signature_image_data_uri = f"data:image/png;base64,{encoded_signature}"
     html = render_template(
         "study_report_pdf.html",
         report=report,
@@ -75,6 +82,7 @@ def generate_report_pdf(
         patient_name=_visible_patient_name(report) or "Paciente sin identificar",
         generated_at_bogota=format_generation_time_bogota(generated_at),
         signature_profile=signature_profile,
+        signature_image_data_uri=signature_image_data_uri,
         conclusion_paragraphs=_conclusion_paragraphs(report),
         wide_letterhead_uri=_asset_uri(root_path, WIDE_LETTERHEAD_PATH),
         compact_letterhead_uri=_asset_uri(root_path, COMPACT_LETTERHEAD_PATH),

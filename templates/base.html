@@ -17,6 +17,9 @@
         {% if current_user.is_authenticated %}
           <div class="site-header-actions">
             <span class="site-user">{{ current_user.full_name }} · {{ role_display_name(current_user.role) }}</span>
+            {% if current_user.role == 'MEDICO' %}
+              <a class="button button-secondary" href="{{ url_for('auth.signature_profile') }}">Perfil de firma</a>
+            {% endif %}
             <form action="{{ url_for('auth.logout') }}" method="post">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="button button-secondary">Cerrar sesión</button>

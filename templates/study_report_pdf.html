@@ -65,7 +65,9 @@
 
     <section class="signature-block" aria-label="Firma del profesional responsable">
       <p class="signature-caption">Firma del profesional responsable</p>
-      <div class="signature-writing-space" aria-hidden="true"></div>
+      <div class="signature-writing-space" aria-hidden="true">
+        {% if signature_image_data_uri %}<img class="signature-image" src="{{ signature_image_data_uri }}" alt="">{% endif %}
+      </div>
       <p class="signature-name">{{ signature_profile.name }}</p>
       {% if signature_profile.profession_specialty %}<p>{{ signature_profile.profession_specialty }}</p>{% endif %}
       {% if signature_profile.professional_registration %}<p>Registro profesional: {{ signature_profile.professional_registration }}</p>{% endif %}

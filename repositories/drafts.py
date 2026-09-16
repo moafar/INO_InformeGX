@@ -81,6 +81,9 @@ class PersistedReportVersion:
     signer_signature_profile: dict[str, str]
     source_version_id: UUID | None
     vdvt_metadata: dict[str, object] | None = None
+    signer_signature_image: bytes | None = None
+    signer_signature_image_mime_type: str | None = None
+    signer_signature_image_updated_at: datetime | None = None
 
 
 def _now() -> datetime:
@@ -385,7 +388,15 @@ def release_from_signature(*, draft_id: UUID, user_id: int, username: str, relea
             return released
 
 
-def sign_draft(*, draft_id: UUID, user_id: int, username: str, signer_signature_profile: dict[str, str], signed_at: datetime | None = None, expected_values: dict[str, DraftValue] | None = None) -> PersistedReportVersion:
+def sign_draft(
+    *,
+    draft_id: UUID,
+    user_id: int,
+    username: str,
+    signer_signature_profile: dict[str, str],
+    signed_at: datetime | None = None,
+    expected_values: dict[str, DraftValue] | None = None,
+) -> PersistedReportVersion:
     instant = signed_at or _now()
     connection = get_app_db()
     with connection.transaction():
@@ -400,6 +411,26 @@ def sign_draft(*, draft_id: UUID, user_id: int, username: str, signer_signature_
                 raise DraftOwnershipError("Solo el médico propietario puede firmar el informe.")
             if expected_values is not None and draft.values != expected_values:
                 raise DraftChangedError("El informe cambió durante la firma; actualice la página.")
+            cursor.execute(
+                """SELECT signature_image, signature_image_mime_type,
+                          signature_image_updated_at
+                     FROM ergo_app.user_signature_profiles
+                    WHERE user_id=%s FOR SHARE""",
+                (user_id,),
+            )
+            signature_row = cursor.fetchone()
+            if (
+                signature_row is None
+                or signature_row[0] is None
+                or signature_row[1] != "image/png"
+                or signature_row[2] is None
+            ):
+                raise DraftStateError(
+                    "Configure su firma manuscrita PNG antes de firmar el informe."
+                )
+            signer_signature_image = bytes(signature_row[0])
+            signer_signature_image_mime_type = str(signature_row[1])
+            signer_signature_image_updated_at = signature_row[2]
             version_id = uuid4()
             identity = {
                 "study_id": str(draft.study_id), "gx_source": "GXPostgresDataSource",
@@ -409,23 +440,32 @@ def sign_draft(*, draft_id: UUID, user_id: int, username: str, signer_signature_
             cursor.execute(
                 """INSERT INTO ergo_app.report_versions
                    (id, study_id, version_number, signed_by_user_id, signed_by_username, signed_at,
-                    state, source_version_id, signer_signature_profile, study_identity, snapshot)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)""",
+                    state, source_version_id, signer_signature_profile,
+                    signer_signature_image, signer_signature_image_mime_type,
+                    signer_signature_image_updated_at, study_identity, snapshot)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb,
+                           %s, %s, %s, %s::jsonb, %s::jsonb)""",
                 (version_id, draft.study_id, draft.next_version_number, user_id, username, instant,
                  FIRMADO, draft.created_from_version_id, json.dumps(signer_signature_profile),
+                 signer_signature_image, signer_signature_image_mime_type,
+                 signer_signature_image_updated_at,
                  json.dumps(identity), json.dumps(_snapshot_values(draft.values, draft.vdvt_metadata))),
             )
             _audit(cursor, draft=draft, event_type="SIGNED", actor_user_id=user_id, actor_username=username, instant=instant)
             cursor.execute("DELETE FROM ergo_app.report_drafts WHERE id=%s", (draft.id,))
             return PersistedReportVersion(version_id, draft.study_id, draft.next_version_number, user_id, username, instant,
                 draft.lookup_patient_id_num, draft.lookup_visit_datetime, draft.values, signer_signature_profile,
-                draft.created_from_version_id, draft.vdvt_metadata)
+                draft.created_from_version_id, draft.vdvt_metadata,
+                signer_signature_image, signer_signature_image_mime_type,
+                signer_signature_image_updated_at)
 
 
 def _read_version(cursor, version_id: UUID, *, for_update: bool = False) -> PersistedReportVersion | None:
     cursor.execute(
         f"""SELECT v.id, v.study_id, v.version_number, v.signed_by_user_id, v.signed_by_username,
-                   v.signed_at, v.study_identity, v.snapshot, v.signer_signature_profile, v.source_version_id
+                   v.signed_at, v.study_identity, v.snapshot, v.signer_signature_profile, v.source_version_id,
+                   v.signer_signature_image, v.signer_signature_image_mime_type,
+                   v.signer_signature_image_updated_at
               FROM ergo_app.report_versions v WHERE v.id=%s AND v.state=%s {'FOR UPDATE' if for_update else ''}""",
         (version_id, FIRMADO),
     )
@@ -438,6 +478,9 @@ def _read_version(cursor, version_id: UUID, *, for_update: bool = False) -> Pers
         str(identity["lookup_patient_id_num"]), datetime.fromisoformat(identity["lookup_visit_datetime"]),
         _values_from_snapshot(snapshot), {str(key): str(value) for key, value in profile.items()},
         UUID(str(row[9])) if row[9] is not None else None, _vdvt_metadata_from_snapshot(snapshot),
+        bytes(row[10]) if row[10] is not None else None,
+        str(row[11]) if row[11] is not None else None,
+        row[12],
     )
 
 

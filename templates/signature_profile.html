@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil de firma | Ergo App{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <h2>Perfil de firma</h2>
+    <p class="muted">Los datos y la firma PNG vigentes se congelarán al firmar cada informe.</p>
+  </section>
+
+  {% if updated %}<div class="notice">Perfil de firma actualizado.</div>{% endif %}
+
+  <form action="{{ url_for('auth.signature_profile') }}" method="post" enctype="multipart/form-data" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field">
+      <span>Nombre para firma</span>
+      <input type="text" name="signature_name" value="{{ form_values.signature_name }}" maxlength="200">
+    </label>
+    <label class="field">
+      <span>Profesión / especialidad</span>
+      <input type="text" name="profession_specialty" value="{{ form_values.profession_specialty }}" maxlength="200" required>
+    </label>
+    <label class="field">
+      <span>Registro profesional</span>
+      <input type="text" name="professional_registration" value="{{ form_values.professional_registration }}" maxlength="120" required>
+    </label>
+    <label class="field">
+      <span>Línea institucional</span>
+      <input type="text" name="institutional_line" value="{{ form_values.institutional_line }}" maxlength="300">
+    </label>
+    <label class="field">
+      <span>Archivo PNG (máximo 1 MB)</span>
+      <input type="file" name="signature_image" accept="image/png,.png">
+    </label>
+    {% if current_user.signature_image_updated_at %}
+      <p class="muted">Firma manuscrita PNG configurada.</p>
+    {% else %}
+      <p class="muted">No hay firma manuscrita configurada.</p>
+    {% endif %}
+    <button type="submit" class="button">Guardar perfil de firma</button>
+  </form>
+{% endblock %}

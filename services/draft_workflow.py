@@ -176,9 +176,15 @@ def release_draft(*, draft: PersistedDraft, user_id: int, username: str, role: s
 def sign_report_draft(*, draft: PersistedDraft, user, expected_values: dict[str, DraftValue] | None = None) -> PersistedReportVersion:
     if user.role != MEDICO:
         raise DraftPermissionError(f"Solo el rol {role_display_name(MEDICO)} puede firmar el informe.")
+    user_id = int(user.get_id())
+    if draft.state != EN_FIRMA:
+        raise DraftStateError("El informe no está en firma.")
+    if draft.medical_owner_user_id != user_id:
+        raise DraftOwnershipError("Solo el médico propietario puede firmar el informe.")
     return sign_draft(
-        draft_id=draft.id, user_id=int(user.get_id()), username=user.username,
-        signer_signature_profile=asdict(signature_profile_for_user(user)), expected_values=expected_values,
+        draft_id=draft.id, user_id=user_id, username=user.username,
+        signer_signature_profile=asdict(signature_profile_for_user(user)),
+        expected_values=expected_values,
     )
 
 

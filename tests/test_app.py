@@ -9,13 +9,14 @@ from unittest import TestCase
 from unittest.mock import patch
 from uuid import uuid4
 
-from repositories.drafts import EN_FIRMA, PRELIMINAR, PRELIMINAR_BLOQUEADO, DraftValue, PersistedDraft
+from repositories.drafts import EN_FIRMA, PRELIMINAR, PRELIMINAR_BLOQUEADO, DraftOwnershipError, DraftValue, PersistedDraft
 from repositories.users import AuthUser
 from services.draft_workflow import (
     DraftPermissionError,
     editable_control_ids,
     open_persistent_draft,
     save_draft_values,
+    sign_report_draft,
     take_draft_for_signature,
 )
 from services.report_controls import AUXILIAR, CALCULADO, CONTROL_TYPES, COORDINADORA, DIRECTO, INTERPRETACION, MANUAL, MEDICO, role_display_name
@@ -121,6 +122,36 @@ class PermissionTests(TestCase):
             save.call_args.kwargs["updates"]["medico_remitente"],
             ("Dr. Remitente sintético", False),
         )
+
+    def test_signing_preserves_backend_ownership_and_delegates_atomic_snapshot(self) -> None:
+        active = draft(state=EN_FIRMA, owner=7)
+        user = AuthUser(
+            id=7,
+            username="medico-sintetico",
+            full_name="Médico sintético",
+            password_hash="unused",
+            active=True,
+            role=MEDICO,
+        )
+        with patch("services.draft_workflow.sign_draft", return_value="signed") as persist:
+            result = sign_report_draft(draft=active, user=user)
+
+        self.assertEqual(result, "signed")
+        self.assertEqual(persist.call_args.kwargs["user_id"], user.id)
+        self.assertEqual(persist.call_args.kwargs["draft_id"], active.id)
+
+        other_user = AuthUser(
+            id=8,
+            username="otro-medico-sintetico",
+            full_name="Otro médico sintético",
+            password_hash="unused",
+            active=True,
+            role=MEDICO,
+        )
+        with patch("services.draft_workflow.sign_draft") as persist:
+            with self.assertRaises(DraftOwnershipError):
+                sign_report_draft(draft=active, user=other_user)
+        persist.assert_not_called()
 
 
 class InitialValuesTests(TestCase):

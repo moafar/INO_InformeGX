@@ -28,20 +28,28 @@ from repositories.drafts import (
     sign_draft,
     take_for_signature,
 )
+from repositories.users import (
+    get_user_by_id,
+    get_user_signature_image,
+    save_user_signature_profile,
+)
 from services.draft_workflow import open_persistent_draft
 from services.draft_workflow import (
     report_view_for_draft,
     report_view_for_version,
     save_draft_values,
+    sign_report_draft,
     take_draft_for_signature,
 )
 from services.passwords import hash_password
 from services.report_controls import AUXILIAR, COORDINADORA, MEDICO
 from services.study_report import INITIAL_CONCLUSIONES_DEFINITIVAS
+from tests.synthetic_png import synthetic_png
 
 
 TEST_DATABASE_URL = os.getenv("INFORMEGX_TEST_DATABASE_URL")
 DESTRUCTIVE_TEST_OPT_IN_ENV = "INFORMEGX_ALLOW_DESTRUCTIVE_TESTS"
+SIGNATURE_UPDATED_AT = datetime(2026, 9, 16, 10, 30, tzinfo=timezone.utc)
 
 
 def destructive_test_database_url(environ: dict[str, str] | None = None) -> str:
@@ -142,9 +150,21 @@ class PostgresWorkflowTests(TestCase):
     def setUp(self) -> None:
         test_database_url = destructive_test_database_url()
         with psycopg.connect(test_database_url, autocommit=True) as connection:
-            connection.execute("TRUNCATE ergo_app.report_pdf_events, ergo_app.report_workflow_audits, ergo_app.report_versions, ergo_app.draft_values, ergo_app.report_drafts, ergo_app.studies, ergo_app.user_signature_profiles, ergo_app.users RESTART IDENTITY CASCADE")
+            connection.execute("TRUNCATE ergo_app.user_signature_profile_audits, ergo_app.report_pdf_events, ergo_app.report_workflow_audits, ergo_app.report_versions, ergo_app.draft_values, ergo_app.report_drafts, ergo_app.studies, ergo_app.user_signature_profiles, ergo_app.users RESTART IDENTITY CASCADE")
             for username, role in (("aux", AUXILIAR), ("med_a", MEDICO), ("med_b", MEDICO), ("coord", COORDINADORA)):
                 connection.execute("INSERT INTO ergo_app.users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)", (username, f"{username} sintético", hash_password("secret"), role))
+            for username in ("med_a", "med_b"):
+                connection.execute(
+                    """INSERT INTO ergo_app.user_signature_profiles
+                           (user_id, signature_name, profession_specialty,
+                            professional_registration, institutional_line,
+                            signature_image, signature_image_mime_type,
+                            signature_image_updated_at)
+                         SELECT id, full_name, 'Especialidad sintética', 'RM-100',
+                                'Institución sintética', %s, 'image/png', %s
+                           FROM ergo_app.users WHERE username=%s""",
+                    (synthetic_png(), SIGNATURE_UPDATED_AT, username),
+                )
 
     def _draft(self):
         with self.app.app_context():
@@ -254,6 +274,165 @@ class PostgresWorkflowTests(TestCase):
         )
         with psycopg.connect(TEST_DATABASE_URL) as connection:
             self.assertEqual(connection.execute("SELECT count(*) FROM ergo_app.report_pdf_events").fetchone()[0], 0)
+
+    def test_replacing_profile_signature_is_audited_and_does_not_change_signed_version(self) -> None:
+        first_image = synthetic_png(10)
+        second_image = synthetic_png(220)
+        first_updated_at = datetime(2026, 9, 16, 10, 0, tzinfo=timezone.utc)
+        second_updated_at = datetime(2026, 9, 16, 11, 0, tzinfo=timezone.utc)
+        draft = self._draft()
+        with self.app.app_context():
+            save_user_signature_profile(
+                user_id=2,
+                actor_user_id=2,
+                actor_username="med_a",
+                signature_name="Dra. Sintética",
+                profession_specialty="Especialidad sintética",
+                professional_registration="RM-100",
+                institutional_line="Institución sintética",
+                signature_image_content=first_image,
+                signature_image_mime_type="image/png",
+                updated_at=first_updated_at,
+            )
+            current = get_user_signature_image(2)
+            self.assertIsNotNone(current)
+            self.assertEqual(current.content, first_image)
+            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
+            user = get_user_by_id(2)
+            assert user is not None
+            signed = sign_report_draft(draft=taken, user=user, expected_values=taken.values)
+            save_user_signature_profile(
+                user_id=2,
+                actor_user_id=2,
+                actor_username="med_a",
+                signature_name="Dra. Sintética actualizada",
+                profession_specialty="Especialidad actualizada",
+                professional_registration="RM-200",
+                institutional_line="Institución actualizada",
+                signature_image_content=second_image,
+                signature_image_mime_type="image/png",
+                updated_at=second_updated_at,
+            )
+            stored_version = get_report_version(signed.id)
+            current = get_user_signature_image(2)
+
+        assert stored_version is not None and current is not None
+        self.assertEqual(current.content, second_image)
+        self.assertEqual(current.updated_at, second_updated_at)
+        self.assertEqual(stored_version.signer_signature_image, first_image)
+        self.assertEqual(
+            stored_version.signer_signature_image_updated_at,
+            first_updated_at,
+        )
+        self.assertEqual(
+            stored_version.signer_signature_profile["name"],
+            "Dra. Sintética",
+        )
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            audits = connection.execute(
+                """SELECT profile_user_id, actor_user_id, actor_username, occurred_at
+                     FROM ergo_app.user_signature_profile_audits
+                    ORDER BY occurred_at"""
+            ).fetchall()
+        self.assertEqual(
+            audits,
+            [
+                (2, 2, "med_a", first_updated_at),
+                (2, 2, "med_a", second_updated_at),
+            ],
+        )
+
+    def test_physician_without_profile_can_create_text_then_add_png(self) -> None:
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            connection.execute(
+                "DELETE FROM ergo_app.user_signature_profiles WHERE user_id=2"
+            )
+        text_updated_at = datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc)
+        image_updated_at = datetime(2026, 9, 16, 9, 30, tzinfo=timezone.utc)
+        final_text_updated_at = datetime(2026, 9, 16, 10, 0, tzinfo=timezone.utc)
+        image = synthetic_png(80)
+        with self.app.app_context():
+            save_user_signature_profile(
+                user_id=2,
+                actor_user_id=2,
+                actor_username="med_a",
+                signature_name="med_a sintético",
+                profession_specialty="Especialidad inicial",
+                professional_registration="RM-001",
+                institutional_line="",
+                updated_at=text_updated_at,
+            )
+            self.assertIsNone(get_user_signature_image(2))
+            save_user_signature_profile(
+                user_id=2,
+                actor_user_id=2,
+                actor_username="med_a",
+                signature_name="Dra. Actualizada",
+                profession_specialty="Especialidad actualizada",
+                professional_registration="RM-002",
+                institutional_line="Institución sintética",
+                signature_image_content=image,
+                signature_image_mime_type="image/png",
+                updated_at=image_updated_at,
+            )
+            save_user_signature_profile(
+                user_id=2,
+                actor_user_id=2,
+                actor_username="med_a",
+                signature_name="Dra. Solo texto",
+                profession_specialty="Especialidad final",
+                professional_registration="RM-003",
+                institutional_line="Institución final",
+                updated_at=final_text_updated_at,
+            )
+            stored_image = get_user_signature_image(2)
+
+        assert stored_image is not None
+        self.assertEqual(stored_image.content, image)
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            profile = connection.execute(
+                """SELECT signature_name, profession_specialty,
+                          professional_registration, institutional_line
+                     FROM ergo_app.user_signature_profiles WHERE user_id=2"""
+            ).fetchone()
+            audit_count = connection.execute(
+                """SELECT COUNT(*) FROM ergo_app.user_signature_profile_audits
+                    WHERE profile_user_id=2"""
+            ).fetchone()[0]
+        self.assertEqual(
+            profile,
+            (
+                "Dra. Solo texto",
+                "Especialidad final",
+                "RM-003",
+                "Institución final",
+            ),
+        )
+        self.assertEqual(audit_count, 1)
+
+    def test_signing_without_current_signature_image_keeps_active_draft(self) -> None:
+        draft = self._draft()
+        with psycopg.connect(TEST_DATABASE_URL) as connection:
+            connection.execute(
+                """UPDATE ergo_app.user_signature_profiles
+                      SET signature_image=NULL, signature_image_mime_type=NULL,
+                          signature_image_updated_at=NULL
+                    WHERE user_id=2"""
+            )
+        with self.app.app_context():
+            taken = take_for_signature(draft_id=draft.id, user_id=2, username="med_a")
+            with self.assertRaisesRegex(DraftStateError, "firma manuscrita PNG"):
+                sign_draft(
+                    draft_id=taken.id,
+                    user_id=2,
+                    username="med_a",
+                    signer_signature_profile={"name": "Dra. Sintética"},
+                    expected_values=taken.values,
+                )
+            preserved = get_draft(taken.id)
+        assert preserved is not None
+        self.assertEqual(preserved.state, EN_FIRMA)
+        self.assertEqual(preserved.medical_owner_user_id, 2)
 
     def test_new_version_requires_no_active_draft_and_latest_signed_source(self) -> None:
         draft = self._draft()
@@ -480,6 +659,14 @@ class PostgresWorkflowTests(TestCase):
         self.assertTrue(all(response.status_code == 200 for response in responses))
         self.assertTrue(all(response.data == pdf_bytes for response in responses))
         self.assertEqual(generate.call_args.kwargs["signature_profile"].name, "Dra. Firmante sintética")
+        self.assertEqual(
+            generate.call_args.kwargs["signature_image"],
+            synthetic_png(),
+        )
+        self.assertEqual(
+            generate.call_args.kwargs["signature_image_mime_type"],
+            "image/png",
+        )
         with psycopg.connect(TEST_DATABASE_URL) as connection:
             events = connection.execute(
                 """SELECT version_id, generated_by_user_id, generated_by_username,

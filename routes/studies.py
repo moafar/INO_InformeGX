@@ -313,7 +313,14 @@ def report_pdf():
         professional_registration=version.signer_signature_profile.get("professional_registration", ""),
         institutional_line=version.signer_signature_profile.get("institutional_line", ""),
     )
-    pdf_bytes = generate_report_pdf(report, build_report_narratives(report), generated_at=generated_at, signature_profile=profile)
+    pdf_bytes = generate_report_pdf(
+        report,
+        build_report_narratives(report),
+        generated_at=generated_at,
+        signature_profile=profile,
+        signature_image=version.signer_signature_image,
+        signature_image_mime_type=version.signer_signature_image_mime_type,
+    )
     filename = _pdf_filename(version.lookup_patient_id_num, version.lookup_visit_datetime, version.version_number)
     try:
         record_pdf_event(version_id=version.id, user_id=int(current_user.get_id()), username=current_user.username, generated_at=generated_at, filename=filename, pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(), pdf_size_bytes=len(pdf_bytes))

@@ -8,18 +8,29 @@ database.
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from io import BytesIO
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, call, patch
 from uuid import uuid4
 
 from app import create_app
 from db import get_app_db, get_clinical_db
-from repositories.drafts import release_locks_for_user
-from repositories.users import AuthUser, get_user_by_id, get_user_by_username
+from repositories.drafts import DraftStateError, release_locks_for_user
+from repositories.users import (
+    AuthUser,
+    get_user_by_id,
+    get_user_by_username,
+    save_user_signature_profile,
+)
 from services.auth import authenticate_user
 from services.passwords import hash_password, verify_password
-from services.signature_profile import SIGNATURE_PROFILE_SESSION_KEY
+from services.signature_profile import (
+    SIGNATURE_PROFILE_SESSION_KEY,
+    SignatureImageValidationError,
+    validate_signature_png,
+)
+from tests.synthetic_png import synthetic_png
 
 
 def extract_csrf(html: str) -> str:
@@ -114,6 +125,8 @@ class UserRepositoryTests(TestCase):
                 "Neumología",
                 "RM 12345",
                 "Instituto sintético",
+                "image/png",
+                created_at,
             ),
             (
                 8,
@@ -123,6 +136,8 @@ class UserRepositoryTests(TestCase):
                 True,
                 "AUXILIAR",
                 created_at,
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -149,11 +164,70 @@ class UserRepositoryTests(TestCase):
         self.assertEqual(profiled.profession_specialty, "Neumología")
         self.assertEqual(profiled.professional_registration, "RM 12345")
         self.assertEqual(profiled.institutional_line, "Instituto sintético")
+        self.assertEqual(profiled.signature_image_mime_type, "image/png")
+        self.assertEqual(profiled.signature_image_updated_at, created_at)
         self.assertEqual(without_profile.role, "AUXILIAR")
         self.assertIsNone(without_profile.signature_name)
         self.assertIsNone(without_profile.profession_specialty)
         self.assertIsNone(without_profile.professional_registration)
         self.assertIsNone(without_profile.institutional_line)
+        self.assertIsNone(without_profile.signature_image_mime_type)
+        self.assertIsNone(without_profile.signature_image_updated_at)
+
+    def test_saving_signature_image_upserts_and_audits_actor_and_timestamp(self) -> None:
+        connection = MagicMock(name="app_connection")
+        cursor = connection.cursor.return_value.__enter__.return_value
+        instant = datetime(2026, 9, 16, 10, 30, tzinfo=timezone.utc)
+        image = synthetic_png()
+
+        with patch("repositories.users.get_app_db", return_value=connection):
+            stored = save_user_signature_profile(
+                user_id=7,
+                actor_user_id=7,
+                actor_username="medico-sintetico",
+                signature_name="Dra. Sintética",
+                profession_specialty="Neumología",
+                professional_registration="RM-123",
+                institutional_line="Institución sintética",
+                signature_image_content=image,
+                signature_image_mime_type="image/png",
+                updated_at=instant,
+            )
+
+        upsert_query, upsert_params = cursor.execute.call_args_list[0].args
+        audit_query, audit_params = cursor.execute.call_args_list[1].args
+        self.assertIn("INSERT INTO ergo_app.user_signature_profiles", upsert_query)
+        self.assertIn("ON CONFLICT (user_id) DO UPDATE", upsert_query)
+        self.assertEqual(upsert_params[-3:], (image, "image/png", instant))
+        self.assertIn("INSERT INTO ergo_app.user_signature_profile_audits", audit_query)
+        self.assertEqual(audit_params[0:5], (7, 7, "medico-sintetico", instant, "image/png"))
+        self.assertEqual(audit_params[-1], len(image))
+        self.assertEqual(stored.content, image)
+        self.assertEqual(stored.updated_at, instant)
+
+    def test_text_only_profile_upsert_does_not_create_image_audit(self) -> None:
+        connection = MagicMock(name="app_connection")
+        cursor = connection.cursor.return_value.__enter__.return_value
+        instant = datetime(2026, 9, 16, 10, 30, tzinfo=timezone.utc)
+
+        with patch("repositories.users.get_app_db", return_value=connection):
+            stored = save_user_signature_profile(
+                user_id=7,
+                actor_user_id=7,
+                actor_username="medico-sintetico",
+                signature_name="Dra. Sintética",
+                profession_specialty="Neumología",
+                professional_registration="RM-123",
+                institutional_line="",
+                updated_at=instant,
+            )
+
+        self.assertIsNone(stored)
+        self.assertEqual(cursor.execute.call_count, 1)
+        query, parameters = cursor.execute.call_args.args
+        self.assertIn("ON CONFLICT (user_id) DO UPDATE", query)
+        self.assertNotIn("signature_image=", query)
+        self.assertEqual(parameters[-2:], (None, instant))
 
     def test_invalid_user_identifiers_do_not_query_the_database(self) -> None:
         with patch("repositories.users.get_app_db") as get_connection:
@@ -249,6 +323,7 @@ class AuthRouteTests(TestCase):
             ("get", "/studies/versions"),
             ("post", "/studies/versions/create"),
             ("post", "/studies/versions/report.pdf"),
+            ("get", "/signature-profile"),
         ]
 
         for method, path in protected_requests:
@@ -337,6 +412,98 @@ class AuthRouteTests(TestCase):
                 self.assertNotIn("Auxiliar", html)
                 self.assertNotIn("Coordinadora", html)
 
+    def test_medico_can_create_or_update_complete_profile_with_optional_png(self) -> None:
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+            session["_csrf_token"] = "synthetic-csrf"
+
+        profile_data = {
+            "csrf_token": "synthetic-csrf",
+            "signature_name": "Dra. Perfil actualizado",
+            "profession_specialty": "Neumología sintética",
+            "professional_registration": "RM-900",
+            "institutional_line": "Institución sintética",
+        }
+        with patch("routes.auth.save_user_signature_profile") as save:
+            text_only = self.client.post(
+                "/signature-profile",
+                data=profile_data,
+                content_type="multipart/form-data",
+            )
+            valid = self.client.post(
+                "/signature-profile",
+                data={
+                    **profile_data,
+                    "signature_image": (BytesIO(synthetic_png()), "firma.pdf", "application/pdf"),
+                },
+                content_type="multipart/form-data",
+            )
+            invalid = self.client.post(
+                "/signature-profile",
+                data={
+                    **profile_data,
+                    "signature_image": (BytesIO(b"not-a-png"), "firma.png", "image/png"),
+                },
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(text_only.status_code, 302)
+        self.assertEqual(valid.status_code, 302)
+        self.assertEqual(save.call_count, 2)
+        text_call, image_call = save.call_args_list
+        self.assertIsNone(text_call.kwargs["signature_image_content"])
+        self.assertEqual(text_call.kwargs["signature_name"], "Dra. Perfil actualizado")
+        self.assertEqual(image_call.kwargs["signature_image_content"], synthetic_png())
+        self.assertEqual(image_call.kwargs["signature_image_mime_type"], "image/png")
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("PNG válido", invalid.get_data(as_text=True))
+        with self.assertRaisesRegex(SignatureImageValidationError, "superar 1 MB"):
+            validate_signature_png(b"x" * (1024 * 1024 + 1))
+
+    def test_medico_without_profile_uses_full_name_fallback_on_first_save(self) -> None:
+        self.user.signature_name = None
+        self.user.profession_specialty = None
+        self.user.professional_registration = None
+        self.user.institutional_line = None
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+            session["_csrf_token"] = "synthetic-csrf"
+
+        page = self.client.get("/signature-profile").get_data(as_text=True)
+        for label in (
+            "Perfil de firma",
+            "Nombre para firma",
+            "Profesión / especialidad",
+            "Registro profesional",
+            "Línea institucional",
+            "Archivo PNG",
+        ):
+            self.assertIn(label, page)
+
+        with patch("routes.auth.save_user_signature_profile") as save:
+            response = self.client.post(
+                "/signature-profile",
+                data={
+                    "csrf_token": "synthetic-csrf",
+                    "signature_name": "",
+                    "profession_specialty": "Medicina sintética",
+                    "professional_registration": "RM-101",
+                    "institutional_line": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(save.call_args.kwargs["signature_name"], self.user.full_name)
+        self.assertIsNone(save.call_args.kwargs["signature_image_content"])
+
+    def test_non_medico_cannot_manage_signature_image(self) -> None:
+        self.user.role = "COORDINADORA"
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+        self.assertEqual(self.client.get("/signature-profile").status_code, 403)
+
     def test_pdf_authorization_message_uses_leader_label(self) -> None:
         self.user.role = "AUXILIAR"
         with self.client.session_transaction() as session:
@@ -352,6 +519,31 @@ class AuthRouteTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn("rol Líder", response.get_data(as_text=True))
         self.assertNotIn("coordinadora", response.get_data(as_text=True).casefold())
+
+    def test_sign_route_reports_missing_handwritten_signature_without_signing(self) -> None:
+        draft_id = uuid4()
+        active_draft = Mock(id=draft_id, values={})
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.user.id)
+            session["_fresh"] = True
+            session["_csrf_token"] = "synthetic-csrf"
+
+        with patch("routes.studies.get_draft", return_value=active_draft), patch(
+            "routes.studies.sign_report_draft",
+            side_effect=DraftStateError(
+                "Configure su firma manuscrita PNG antes de firmar el informe."
+            ),
+        ) as sign:
+            response = self.client.post(
+                "/studies/drafts/sign",
+                data={"csrf_token": "synthetic-csrf", "draft_id": str(draft_id)},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("firma manuscrita PNG", response.get_json()["error"])
+        sign.assert_called_once()
+        self.assertIs(sign.call_args.kwargs["draft"], active_draft)
+        self.assertEqual(sign.call_args.kwargs["expected_values"], active_draft.values)
 
     def test_create_version_redirects_html_forms_and_keeps_json_for_api_clients(self) -> None:
         source_version_id = uuid4()

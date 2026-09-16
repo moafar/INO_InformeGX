@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,7 @@ from services.pdf_report import format_generation_time_bogota, generate_report_p
 from services.report_narratives import SECTION_TITLES, build_report_narratives
 from services.signature_profile import SignatureProfile
 from services.study_report import build_study_report_view
+from tests.synthetic_png import synthetic_png
 
 
 def report_with_snapshot_values():
@@ -91,11 +93,14 @@ class PdfRenderingTests(TestCase):
         )
         with self.app.app_context(), patch("weasyprint.HTML") as html, patch("weasyprint.CSS"):
             html.return_value.write_pdf.return_value = b"%PDF-synthetic"
+            signature_image = synthetic_png()
             pdf_bytes = generate_report_pdf(
                 report,
                 build_report_narratives(report),
                 generated_at=datetime(2026, 8, 24, 15, 30, tzinfo=timezone.utc),
                 signature_profile=profile,
+                signature_image=signature_image,
+                signature_image_mime_type="image/png",
             )
 
         rendered_html = html.call_args.kwargs["string"]
@@ -106,6 +111,11 @@ class PdfRenderingTests(TestCase):
         self.assertIn("Dra. Firmante sintética", rendered_html)
         self.assertIn("Especialidad sintética", rendered_html)
         self.assertIn("Registro profesional: RM-900", rendered_html)
+        self.assertIn(
+            "data:image/png;base64," + base64.b64encode(signature_image).decode("ascii"),
+            rendered_html,
+        )
+        self.assertIn('class="signature-image"', rendered_html)
         self.assertNotIn("Guardar ahora", rendered_html)
         self.assertNotIn("GX · EDITADO", rendered_html)
 
@@ -158,6 +168,19 @@ class PdfRenderingTests(TestCase):
             self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
             self.assertEqual(list(temporary_path.iterdir()), [])
 
+    def test_historical_version_without_signature_image_renders_without_image(self) -> None:
+        with self.app.app_context(), patch("weasyprint.HTML") as html, patch("weasyprint.CSS"):
+            html.return_value.write_pdf.return_value = b"%PDF-historical"
+            pdf_bytes = generate_report_pdf(
+                report_with_snapshot_values(),
+                build_report_narratives(report_with_snapshot_values()),
+                generated_at=datetime(2026, 8, 24, 15, 30, tzinfo=timezone.utc),
+                signature_profile=SignatureProfile(name="Dra. Histórica sintética"),
+            )
+
+        self.assertEqual(pdf_bytes, b"%PDF-historical")
+        self.assertNotIn('class="signature-image"', html.call_args.kwargs["string"])
+
     def test_generation_time_uses_bogota_and_rejects_naive_instants(self) -> None:
         self.assertEqual(
             format_generation_time_bogota(
@@ -191,6 +214,7 @@ class SignedVersionPdfRouteTests(TestCase):
 
     @staticmethod
     def _signed_version() -> PersistedReportVersion:
+        signature_updated_at = datetime(2026, 8, 19, 14, 0, tzinfo=timezone.utc)
         return PersistedReportVersion(
             id=uuid4(),
             study_id=uuid4(),
@@ -208,6 +232,9 @@ class SignedVersionPdfRouteTests(TestCase):
                 "institutional_line": "Institución sintética",
             },
             source_version_id=None,
+            signer_signature_image=synthetic_png(),
+            signer_signature_image_mime_type="image/png",
+            signer_signature_image_updated_at=signature_updated_at,
         )
 
     def test_coordinator_generates_exact_signed_snapshot_bytes_and_events(self) -> None:
@@ -259,6 +286,14 @@ class SignedVersionPdfRouteTests(TestCase):
                 ),
             )
             self.assertEqual(generated_call.kwargs["generated_at"], generated_at)
+            self.assertEqual(
+                generated_call.kwargs["signature_image"],
+                version.signer_signature_image,
+            )
+            self.assertEqual(
+                generated_call.kwargs["signature_image_mime_type"],
+                "image/png",
+            )
         self.assertEqual(record_event.call_count, 2)
         for event_call in record_event.call_args_list:
             self.assertEqual(event_call.kwargs["version_id"], version.id)
